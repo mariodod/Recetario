@@ -2,19 +2,51 @@
 var express = require('express');
 var swig = require('swig');
 var bodyParser = require('body-parser');
+var mongo = require('mongodb');
+var gestorDB = require("./modules/gestorDB.js");
+var crypto = require('crypto');
+var expressSession = require('express-session');
 
 var app = express();
+
+//Router
+var routerAutenticacion = express.Router();
+routerAutenticacion.use(function (req, res, next) {
+  if (req.session.usuario)
+    next();
+  else
+    res.redirect('/login');
+});
+
+//Encriptacion
+var secreto = 'SDi2018$';
+var encriptador = crypto.createHmac('sha256', secreto);
+var cifrado = encriptador.update('pass').digest('hex');
+
+//App.use
+//Enrutadores
+app.use("/privado/", routerAutenticacion);
+
 
 app.use(express.static('public'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(expressSession({
+  secret: secreto,
+  resave: true,
+  saveUninitialized: true
+}));
 
 //Variables de la aplicacion
 app.set('port', 8081);
+app.set('db', 'mongo://chefmario:marioChef1@ds037551.mlab.com:37551/recetario'); //externalizar user y pass
+
+//Inicializacion del modulo de DB
+gestorDB.init(app, mongo);
 
 //Rutas/controladores por logica
-require("./routes/recetas.js")(app, swig); //(app, param1, param2...)
-require("./routes/users.js")(app, swig); //(app, param1, param2...)
+require("./routes/recetas.js")(app, swig, gestorDB); //(app, param1, param2...)
+require("./routes/users.js")(app, swig, gestorDB, encriptador); //(app, param1, param2...)
 
 /**
  * Metodos de respuesta de express
@@ -39,4 +71,12 @@ app.get('/promo*', function (req, res) {
 //Lanzar el servidor
 app.listen(app.get('port'), function () {
   console.log("Servidor activo");
+});
+
+//Captura de errores genericos
+app.use(function (err, req, res, next) {
+  console.log('Error producido: ' + err);
+  if (!res.headersSent) {
+    res.send('Recurso no disponible');
+  }
 });

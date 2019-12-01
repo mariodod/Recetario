@@ -1,0 +1,20 @@
+<!-- http://node-swig.github.io/swig-templates/docs/ -->
+{% extends "base.html" %}
+
+{% block titulo %}Recetas{% endblock %}
+
+{% block contenido %}
+<ul>
+    {% for receta in recetas %}
+    <li>
+        {{ receta.titulo }}
+        {{ receta.tiempo }}
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% extends "paginacion.html" %}
+
+{% block paginacion %}
+{% endblock %}
