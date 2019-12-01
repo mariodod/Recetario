@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block titulo %}Agregar receta{% endblock %}
+
+{% block contenido %}
+<form method="POST" action="/receta">
+    <input type="text" name="titulo" />
+</form>
+{% endblock %}

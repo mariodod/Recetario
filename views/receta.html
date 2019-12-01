@@ -1,0 +1,8 @@
+<<!-- http://node-swig.github.io/swig-templates/docs/ -->
+{% extends "base.html" %}
+
+{% block titulo %}{{ receta.titulo }}{% endblock %}
+
+{% block contenido %}
+<h1>{{ receta.tiempo }}</h1>{% if receta.tiempo > 60 %} Larga {% endif %}
+{% endblock %}

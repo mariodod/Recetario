@@ -1,0 +1,21 @@
+{
+  "name": "recetario",
+  "version": "0.1.0",
+  "description": "recetario",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified! Configure in package.json\" && exit 1"
+  },
+  "repository": "https://github.com/mariodod/Recetario.git",
+  "keywords": [
+    "node.js"
+  ],
+  "author": "Mario Del Olmo Diaz",
+  "license": "MIT",
+  "readmeFilename": "README.md",
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "express": "^4.17.1",
+    "swig": "^1.4.2"
+  }
+}
