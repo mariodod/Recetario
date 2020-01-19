@@ -14,7 +14,23 @@
 </ul>
 {% endblock %}
 
-{% extends "paginacion.html" %}
-
 {% block paginacion %}
+<!-- Primera -->
+<a href="/recetas?pg=1">Primera</a>
+
+<!-- Anteior (si la hay) -->
+{% if pgActual-1 >= 1 %}
+<a href="/recetas?pg={{ pgActual - 1 }}">{{ pgActual - 1 }}</a>
+{% endif %}
+
+<!-- Actual -->
+<a href="/recetas?pg={{ pgActual }}">{{ pgActual }}</a>
+
+<!-- Siguiente (si la hay) -->
+{% if pgActual+1 <= pgUltima %}
+<a href="/recetas?pg={{ pgActual + 1 }}">{{ pgActual + 1 }}</a>
+{% endif %}
+
+<!-- Ultima -->
+<a href="/recetas?pg={{ pgUltima }}">Ultima</a>
 {% endblock %}

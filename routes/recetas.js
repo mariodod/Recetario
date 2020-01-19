@@ -41,6 +41,12 @@ module.exports = function (app, swig, gestorDB) {
         });
     });
 
+    app.get('/receta', function (req, res) {
+        var respuesta = swig.renderFile('views/receta-form.html', {});
+
+        res.send(respuesta);
+    });
+
     app.post('/receta', function (req, res) {
         //Pueden ser null o undefined
         var receta = {

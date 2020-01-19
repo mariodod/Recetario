@@ -21,12 +21,10 @@ routerAutenticacion.use(function (req, res, next) {
 //Encriptacion
 var secreto = 'SDi2018$';
 var encriptador = crypto.createHmac('sha256', secreto);
-var cifrado = encriptador.update('pass').digest('hex');
 
 //App.use
 //Enrutadores
 app.use("/privado/", routerAutenticacion);
-
 
 app.use(express.static('public'));
 app.use(bodyParser.json());
@@ -39,13 +37,14 @@ app.use(expressSession({
 
 //Variables de la aplicacion
 app.set('port', 8081);
-app.set('db', 'mongo://chefmario:marioChef1@ds037551.mlab.com:37551/recetario'); //externalizar user y pass
+app.set('db', 'mongodb://chefmario:marioChef1@ds037551.mlab.com:37551/recetario'); //externalizar user y pass
 
 //Inicializacion del modulo de DB
 gestorDB.init(app, mongo);
 
 //Rutas/controladores por logica
 require("./routes/recetas.js")(app, swig, gestorDB); //(app, param1, param2...)
+require("./routes/menu.js")(app, swig, gestorDB); //(app, param1, param2...)
 require("./routes/users.js")(app, swig, gestorDB, encriptador); //(app, param1, param2...)
 
 /**
@@ -60,7 +59,9 @@ require("./routes/users.js")(app, swig, gestorDB, encriptador); //(app, param1, 
  */
 //Peticiones HTTP
 app.get('/', function (req, res) {
-  res.send('ver pagina de inicio');
+  var respuesta = swig.renderFile('views/index.html', {});
+
+  res.send(respuesta);
 });
 
 // Ejemplo basado en patrones string

@@ -6,7 +6,7 @@ module.exports = {
         this.mongo = mongo;
     },
     insertarReceta: function (receta, callback) {
-        mongo.MongoClient.connect(app.get('db'), function (err, db) {
+        this.mongo.MongoClient.connect(this.app.get('db'), function (err, db) {
             if (err) {
                 callback(null);
             } else {
@@ -28,7 +28,7 @@ module.exports = {
         });
     },
     eliminarReceta: function (criterio, callback) {
-        mongo.MongoClient.connect(app.get('db'), function (err, db) {
+        this.mongo.MongoClient.connect(this.app.get('db'), function (err, db) {
             if (err) {
                 callback(null);
             } else {
@@ -59,7 +59,7 @@ module.exports = {
      * Sustituye completamente los documentos que coiciden con el criterio de busqueda por el nuevo
      */
     reemplazarReceta: function (criterio, receta, callback) {
-        mongo.MongoClient.connect(app.get('db'), function (err, db) {
+        this.mongo.MongoClient.connect(this.app.get('db'), function (err, db) {
             if (err) {
                 callback(null);
             } else {
@@ -90,7 +90,7 @@ module.exports = {
      * Sustituye o agrega los nuevos atributos al documento
      */
     actualizarReceta: function (criterio, receta, callback) {
-        mongo.MongoClient.connect(app.get('db'), function (err, db) {
+        this.mongo.MongoClient.connect(this.app.get('db'), function (err, db) {
             if (err) {
                 callback(null);
             } else {
@@ -118,7 +118,7 @@ module.exports = {
         });
     },
     obtenerRecetas: function (criterio, callback) {
-        mongo.MongoClient.connect(app.get('db'), function (err, db) {
+        this.mongo.MongoClient.connect(this.app.get('db'), function (err, db) {
             if (err) {
                 callback(null);
             } else {
@@ -150,7 +150,7 @@ module.exports = {
         });
     },
     obtenerRecetasPg: function (criterio, pg, callback) {
-        mongo.MongoClient.connect(app.get('db'), function (err, db) {
+        this.mongo.MongoClient.connect(this.app.get('db'), function (err, db) {
             if (err) {
                 callback(null, null);
             } else {
@@ -184,7 +184,7 @@ module.exports = {
         });
     },
     obtenerUsuarios: function (criterio, callback) {
-        mongo.MongoClient.connect(app.get('db'), function (err, db) {
+        this.mongo.MongoClient.connect(this.app.get('db'), function (err, db) {
             if (err) {
                 callback(null);
             } else {
