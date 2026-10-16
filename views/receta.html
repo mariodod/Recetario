@@ -1,14 +1,45 @@
 <!-- https://mozilla.github.io/nunjucks/ -->
 {% extends "base.html" %}
 
-{% block titulo %}{{ receta.titulo }}{% endblock %}
+{% block titulo %}{{ receta.titulo if receta else 'Receta' }}{% endblock %}
 
 {% block contenido %}
+{% if not receta %}
+<div class="alert alert-danger" role="alert">La receta no existe</div>
+<a class="btn btn-outline-secondary" href="/recetas">Volver a las recetas</a>
+{% else %}
 <h1>{{ receta.titulo }}</h1>
-{% if receta.tiempo %}
-<p>
-    {{ receta.tiempo }} minutos
-    {% if receta.tiempo > 60 %} (preparación larga) {% endif %}
+
+<p class="mb-2">
+    {% if receta.tiempo %}
+    <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
+    {% endif %}
+    {% if receta.dificultad %}
+    <span class="badge bg-light text-dark border">{{ receta.dificultad }}</span>
+    {% endif %}
+    {% if receta.momento %}
+    <span class="badge bg-dark">{{ receta.momento }}</span>
+    {% endif %}
+    {% for etiqueta in receta.etiquetas %}
+    <a class="badge bg-info text-dark text-decoration-none" href="/recetas?etiqueta={{ etiqueta }}">{{ etiqueta }}</a>
+    {% endfor %}
 </p>
+
+{% if receta.tiempo and receta.tiempo > 60 %}
+<p class="text-muted">Preparación larga: merece la pena reservar tiempo.</p>
+{% endif %}
+
+{% if receta.ingredientes.length > 0 %}
+<h2 class="h5 mt-4">Ingredientes</h2>
+<ul>
+    {% for ingrediente in receta.ingredientes %}
+    <li>
+        <a href="/recetas?ingrediente={{ ingrediente }}">{{ ingrediente }}</a>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<a class="btn btn-outline-secondary" href="/recetas">Volver a las recetas</a>
 {% endif %}
 {% endblock %}

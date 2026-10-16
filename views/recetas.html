@@ -4,14 +4,116 @@
 {% block titulo %}Recetas{% endblock %}
 
 {% block contenido %}
-<ul class="list-group">
+<h1>Recetas</h1>
+
+<!-- Filtros -->
+<form class="row g-2 align-items-end mb-4" method="GET" action="/recetas">
+    <div class="col-md-3">
+        <label class="form-label" for="titulo">Buscar por titulo</label>
+        <input class="form-control" type="search" id="titulo" name="titulo" value="{{ filtros.titulo }}" />
+    </div>
+    <div class="col-md-2">
+        <label class="form-label" for="tiempo">Tiempo maximo (min)</label>
+        <input class="form-control" type="number" id="tiempo" name="tiempo" min="1" value="{{ filtros.tiempo }}" />
+    </div>
+    <div class="col-md-2">
+        <label class="form-label" for="dificultad">Dificultad</label>
+        <select class="form-select" id="dificultad" name="dificultad">
+            <option value="">Todas</option>
+            {% for dificultad in dificultades %}
+            <option value="{{ dificultad }}" {% if filtros.dificultad == dificultad %}selected{% endif %}>
+                {{ dificultad }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label" for="etiqueta">Etiqueta</label>
+        <select class="form-select" id="etiqueta" name="etiqueta">
+            <option value="">Todas</option>
+            {% for etiqueta in etiquetas %}
+            <option value="{{ etiqueta.nombre }}" {% if filtros.etiqueta == etiqueta.nombre %}selected{% endif %}>
+                {{ etiqueta.nombre }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label" for="ingrediente">Ingrediente</label>
+        <input class="form-control" type="text" id="ingrediente" name="ingrediente" list="lista-ingredientes"
+            value="{{ filtros.ingrediente }}" />
+        <datalist id="lista-ingredientes">
+            {% for ingrediente in ingredientes %}
+            <option value="{{ ingrediente }}"></option>
+            {% endfor %}
+        </datalist>
+    </div>
+    <div class="col-md-1 d-grid">
+        <button class="btn btn-primary" type="submit">Filtrar</button>
+    </div>
+    {% if hayFiltros %}
+    <div class="col-12">
+        <a href="/recetas">Limpiar filtros</a>
+    </div>
+    {% endif %}
+</form>
+
+{% if recetas.length == 0 %}
+<div class="alert alert-warning">Ninguna receta cumple los filtros actuales.</div>
+{% else %}
+<p class="text-muted">{{ total }} recetas encontradas</p>
+<ul class="list-group mb-4">
     {% for receta in recetas %}
     <li class="list-group-item">
-        {{ receta.titulo }}
+        <a href="/receta/{{ receta._id }}">{{ receta.titulo }}</a>
         {% if receta.tiempo %}
         <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
         {% endif %}
+        {% if receta.dificultad %}
+        <span class="badge bg-light text-dark border">{{ receta.dificultad }}</span>
+        {% endif %}
+        {% for etiqueta in receta.etiquetas %}
+        <span class="badge bg-info text-dark">{{ etiqueta }}</span>
+        {% endfor %}
     </li>
     {% endfor %}
 </ul>
+{% endif %}
+{% endblock %}
+
+{% block paginacion %}
+{% if pgUltima > 1 %}
+<nav aria-label="Paginación de recetas">
+    <ul class="pagination">
+        <!-- Primera -->
+        <li class="page-item {% if pgActual == 1 %}disabled{% endif %}">
+            <a class="page-link" href="/recetas?{{ consulta }}pg=1">Primera</a>
+        </li>
+
+        <!-- Anterior (si la hay) -->
+        {% if pgActual - 1 >= 1 %}
+        <li class="page-item">
+            <a class="page-link" href="/recetas?{{ consulta }}pg={{ pgActual - 1 }}">{{ pgActual - 1 }}</a>
+        </li>
+        {% endif %}
+
+        <!-- Actual -->
+        <li class="page-item active">
+            <a class="page-link" href="/recetas?{{ consulta }}pg={{ pgActual }}">{{ pgActual }}</a>
+        </li>
+
+        <!-- Siguiente (si la hay) -->
+        {% if pgActual + 1 <= pgUltima %}
+        <li class="page-item">
+            <a class="page-link" href="/recetas?{{ consulta }}pg={{ pgActual + 1 }}">{{ pgActual + 1 }}</a>
+        </li>
+        {% endif %}
+
+        <!-- Última -->
+        <li class="page-item {% if pgActual == pgUltima %}disabled{% endif %}">
+            <a class="page-link" href="/recetas?{{ consulta }}pg={{ pgUltima }}">Última</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
 {% endblock %}

@@ -1,6 +1,9 @@
 # Recetario
 Aplicacion para tener un libro de recetas online
 
+Puedes ver y filtrar las recetas, consultar la receta del dia, generar un menu
+aleatorio y añadir tus propias recetas con etiquetas (una vez registrado).
+
 ## Stack tecnologico
 
 | Pieza | Version |
@@ -32,6 +35,26 @@ se ha migrado:
 - **Contraseñas**: el HMAC compartido se ha sustituido por `scrypt` con sal
   aleatoria y comparacion en tiempo constante (`modules/passwords.js`).
 
+## Funcionalidad
+
+- **Listado y filtros** (`/recetas`):  por titulo, tiempo maximo, dificultad,
+  etiqueta e ingrediente. Se combinan entre si y con la paginacion, y todo va
+  en la querystring para poder compartir la url.
+- **Receta del dia** (portada):  se elige a partir de la fecha, asi que no
+  cambia durante el dia y no hace falta guardar estado.
+- **Menu aleatorio** (`/menu`):  solo comidas, solo cenas, ambos o postres.
+- **Etiquetas**:  cada receta lleva las suyas y, al guardarlas, se añaden al
+  listado general del que salen el filtro y el autocompletado del formulario.
+- **Cuentas**:  registro e inicio de sesion. Guardar recetas exige identificarse.
+
+### Modelo de datos
+
+```
+recetas    { titulo, tiempo, dificultad, momento, ingredientes[], etiquetas[], creadaEn }
+usuarios   { username, password, creadaEn }        // password: scrypt con sal
+etiquetas  { nombre, creadaEn }                    // indice unico sobre nombre
+```
+
 ## Puesta en marcha
 
 1. **Base de datos** (MongoDB 8 en Docker):
@@ -55,7 +78,7 @@ se ha migrado:
    npm run seed
    ```
 
-   Crea 13 recetas y el usuario `mario` / `recetario123`.
+   Crea 20 recetas, sus etiquetas y el usuario `mario` / `recetario123`.
 
 4. **Arrancar**:
 
@@ -72,51 +95,55 @@ se ha migrado:
    npm test
    ```
 
-   Recorre todas las rutas y comprueba paginacion, sesiones y escape de HTML.
+   Recorre todas las rutas y comprueba filtros, paginacion, sesiones, menu,
+   alta de recetas y escape de HTML. Los datos que crea la prueba se borran
+   al terminar.
+
+## Rutas
+
+| Ruta | Descripcion |
+| --- | --- |
+| `GET /` | Portada con la receta del dia |
+| `GET /recetas` | Listado paginado con filtros (`titulo`, `tiempo`, `dificultad`, `etiqueta`, `ingrediente`, `pg`) |
+| `GET /receta/:id` | Detalle. Devuelve JSON si se pide con `Accept: application/json` |
+| `GET/POST /receta` | Formulario y alta de recetas (requiere sesion) |
+| `GET/POST /menu` | Menu aleatorio (`momento`, `numero`) |
+| `GET/POST /login` | Identificacion |
+| `GET/POST /signup` | Registro |
+| `GET /logout` | Cierre de sesion |
+| `/privado/*` | Protegido por `modules/autenticacion.js` |
 
 ## Estructura
 
 ```
-app.js              Arranque, middleware y plantillas
+app.js                  Arranque, middleware y plantillas
 modules/
-  gestorDB.js       Acceso a datos (MongoDB)
-  passwords.js      Hash y verificacion de contrasenas
+  gestorDB.js           Acceso a datos (MongoDB)
+  passwords.js          Hash y verificacion de contrasenas
+  autenticacion.js      Middleware de sesion
+  filtros.js            Criterios de busqueda del listado y del menu
+  receta.js             Lectura y validacion del formulario
+  recetaDelDia.js       Eleccion determinista de la receta del dia
 routes/
-  recetas.js        Listado, paginacion, detalle y alta
-  menu.js           Pagina de menu
-  users.js          Login / logout
+  recetas.js            Listado, filtros, detalle y alta
+  menu.js               Menu aleatorio
+  users.js              Registro, login y logout
 scripts/
-  seed.js           Datos de ejemplo
-  smoke-test.js     Pruebas de rutas
-views/              Plantillas Nunjucks
-public/             Estaticos (imagenes)
+  seed.js               Datos de ejemplo
+  smoke-test.js         Pruebas de rutas
+views/                  Plantillas Nunjucks
+public/                 Estaticos (imagenes)
 ```
 
-## TODO
+`views/recetasPg.html` dejo de existir:  el listado siempre esta paginado y
+los filtros van en la misma plantilla.
 
-- [ ] Añadir etiquetas a cada receta
-- [ ] Generar un menu aleatorio:
-  - [ ] Solo comidas
-  - [ ] Solo cenas
-  - [ ] Ambos
-  - [ ] Postres
-- [ ] Receta del dia
-- [ ] Filtrar la lista de recetas en base:
-  - [ ] Tiempo
-  - [ ] Dificultad
-  - [ ] Ingredientes
-  - [ ] Etiquetas (vegetariano, fitness, fiesta...)
-- [ ] Etiquetas generadas por el usuario:
-  - [ ] Guardar cada nueva etiqueta en una lista
-  - [ ] Lista aparezca en el filtro
-  - [ ] Autocompletado y recomendaciones al añadir etiqueta
+## Pendiente
 
-### Pendiente conocido
-
-- Registro de usuarios (`/signup`): de momento solo existe el usuario de
-  ejemplo que crea `npm run seed`.
-- Detalle de receta en HTML: `views/receta.html` esta lista pero
-  `GET /receta/:id` devuelve JSON; falta enlazarla desde el listado.
+- Editar y borrar recetas (`PUT /receta` sigue sin implementarse).
+- Subir fotos de las recetas.
+- Los ingredientes y las etiquetas se escriben separados por comas, asi que un
+  valor que contenga comas no se puede guardar tal cual.
 - `npm audit` avisa de un fallo de denegacion de servicio en `braces`
   (dependencia de `chokidar`, usada por nodemon y por la recarga de
   plantillas de Nunjucks). No tiene correccion publicada y solo afecta a

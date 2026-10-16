@@ -5,6 +5,8 @@ const express = require('express');
 const expressSession = require('express-session');
 const nunjucks = require('nunjucks');
 const gestorDB = require('./modules/gestorDB.js');
+const requiereSesion = require('./modules/autenticacion.js');
+const { elegirRecetaDelDia } = require('./modules/recetaDelDia.js');
 
 var app = express();
 
@@ -52,13 +54,9 @@ app.use(function (req, res, next) {
 });
 
 //Router de autenticacion: protege todo lo que cuelga de /privado/
+//El mismo middleware protege el alta de recetas (ver routes/recetas.js)
 var routerAutenticacion = express.Router();
-routerAutenticacion.use(function (req, res, next) {
-    if (req.session.usuario)
-        next();
-    else
-        res.redirect('/login');
-});
+routerAutenticacion.use(requiereSesion);
 app.use("/privado/", routerAutenticacion);
 
 //Inicializacion del modulo de DB
@@ -80,8 +78,13 @@ require("./routes/users.js")(app, gestorDB); //(app, gestorDB)
  * res.sendStatus(codigo) responde status
  */
 //Peticiones HTTP
-app.get('/', function (req, res) {
-    res.render('index.html');
+app.get('/', async function (req, res) {
+    //La receta del dia solo necesita titulo, tiempo e id
+    const recetas = await gestorDB.obtenerRecetas({}, { projection: { titulo: 1, tiempo: 1 } });
+
+    res.render('index.html', {
+        recetaDelDia: elegirRecetaDelDia(recetas)
+    });
 });
 
 // Ejemplo basado en patrones string (Express 5: el comodin debe tener nombre)

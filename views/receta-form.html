@@ -15,11 +15,66 @@
         <input class="form-control" type="text" id="titulo" name="titulo" value="{{ receta.titulo }}"
             required autofocus />
     </div>
-    <div class="mb-3">
-        <label class="form-label" for="tiempo">Tiempo de preparación (minutos)</label>
-        <input class="form-control" type="number" id="tiempo" name="tiempo" min="1"
-            value="{{ receta.tiempo }}" />
+
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label class="form-label" for="tiempo">Tiempo de preparación (minutos)</label>
+            <input class="form-control" type="number" id="tiempo" name="tiempo" min="1"
+                value="{{ receta.tiempo }}" />
+        </div>
+        <div class="col-md-4 mb-3">
+            <label class="form-label" for="dificultad">Dificultad</label>
+            <select class="form-select" id="dificultad" name="dificultad" required>
+                <option value="">Elige una opción</option>
+                {% for dificultad in dificultades %}
+                <option value="{{ dificultad }}" {% if receta.dificultad == dificultad %}selected{% endif %}>
+                    {{ dificultad }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label class="form-label" for="momento">Momento del día</label>
+            <select class="form-select" id="momento" name="momento" required>
+                <option value="">Elige una opción</option>
+                {% for momento in momentos %}
+                <option value="{{ momento }}" {% if receta.momento == momento %}selected{% endif %}>
+                    {{ momento }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="ingredientes">Ingredientes</label>
+        <input class="form-control" type="text" id="ingredientes" name="ingredientes"
+            list="lista-ingredientes" value="{{ receta.ingredientes | join(', ') }}"
+            placeholder="Sepáralos con comas: huevo, patata, cebolla" />
+        <datalist id="lista-ingredientes">
+            {% for ingrediente in ingredientes %}
+            <option value="{{ ingrediente }}"></option>
+            {% endfor %}
+        </datalist>
+        <div class="form-text">Escribelos separados por comas. Se completan con los que ya usan otras recetas.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="etiquetas">Etiquetas</label>
+        <input class="form-control" type="text" id="etiquetas" name="etiquetas"
+            list="lista-etiquetas" value="{{ receta.etiquetas | join(', ') }}"
+            placeholder="Sepáralas con comas: vegetariano, rapido" />
+        <datalist id="lista-etiquetas">
+            {% for etiqueta in etiquetas %}
+            <option value="{{ etiqueta.nombre }}"></option>
+            {% endfor %}
+        </datalist>
+        <div class="form-text">
+            Las etiquetas nuevas se guardan y sirven para filtrar y recomendar en el resto de la aplicacion.
+        </div>
+    </div>
+
     <button class="btn btn-primary" type="submit">Guardar receta</button>
+    <a class="btn btn-outline-secondary" href="/recetas">Cancelar</a>
 </form>
 {% endblock %}

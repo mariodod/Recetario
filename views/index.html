@@ -4,6 +4,23 @@
 
 {% block contenido %}
 <h1>Pagina de inicio de ReceMario</h1>
-<h2>Usa la barra de navegacion para empezar a usar la aplicacion</h2>
-<h3>Puedes ver las recetas disponibles, añadir nuevas o crear un menu personalizado</h3>
+
+{% if recetaDelDia %}
+<div class="card mt-3 mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Receta del día</h5>
+        <h2 class="card-text">
+            <a href="/receta/{{ recetaDelDia._id }}">{{ recetaDelDia.titulo }}</a>
+        </h2>
+        {% if recetaDelDia.tiempo %}
+        <p class="text-muted mb-0">{{ recetaDelDia.tiempo }} minutos de preparación</p>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">Todavía no hay ninguna receta.</div>
+{% endif %}
+
+<h2 class="h4">Usa la barra de navegacion para empezar</h2>
+<p>Puedes ver y filtrar las recetas disponibles, añadir nuevas o crear un menu personalizado.</p>
 {% endblock %}

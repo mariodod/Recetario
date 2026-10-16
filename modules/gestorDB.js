@@ -36,6 +36,23 @@ function coleccion(nombre) {
     return client.db().collection(nombre);
 }
 
+/**
+ * Indices de la base de datos. Un indice unico evita usuarios o etiquetas
+ * duplicadas aunque dos peticiones lleguen a la vez. Si ya existen indices
+ * incompatibles se avisa pero no se bloquea el arranque.
+ */
+async function crearIndices() {
+    const db = client.db();
+    try {
+        await db.collection('usuarios').createIndex({ username: 1 }, { unique: true });
+        await db.collection('etiquetas').createIndex({ nombre: 1 }, { unique: true });
+        await db.collection('recetas').createIndex({ momento: 1 });
+        await db.collection('recetas').createIndex({ etiquetas: 1 });
+    } catch (err) {
+        console.warn('Aviso al crear los indices de MongoDB: ' + err.message);
+    }
+}
+
 module.exports = {
     /**
      * Guarda la cadena de conexion. Se llama una sola vez al arrancar.
@@ -46,12 +63,13 @@ module.exports = {
 
     /**
      * Abre el cliente compartido por toda la aplicacion. El driver gestiona
-     * el pool de conexiones: se conecta una vez y se reutiliza.
+     * el pool de conexiones:  se conecta una vez y se reutiliza.
      */
     connect: async function () {
         if (client) return client;
         client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
         await client.connect();
+        await crearIndices();
         return client;
     },
 
@@ -99,9 +117,11 @@ module.exports = {
 
     /**
      * Devuelve todas las recetas que coinciden con el criterio.
+     * Con `opciones` se puede, por ejemplo, reducir los campos devueltos:
+     *   obtenerRecetas({}, { projection: { titulo: 1, tiempo: 1 } })
      */
-    obtenerRecetas: async function (criterio = {}) {
-        return coleccion('recetas').find(criterio).toArray();
+    obtenerRecetas: async function (criterio = {}, opciones = {}) {
+        return coleccion('recetas').find(criterio, opciones).toArray();
     },
 
     /**
@@ -126,9 +146,64 @@ module.exports = {
     },
 
     /**
+     * Devuelve n recetas al azar entre las que cumplen el criterio.
+     * Se hace en la propia base de datos con $sample.
+     */
+    obtenerRecetasAleatorias: async function (criterio = {}, n = 3) {
+        return coleccion('recetas').aggregate([
+            { $match: criterio },
+            { $sample: { size: n } }
+        ]).toArray();
+    },
+
+    /**
+     * Guarda una etiqueta si no existia ya. Devuelve su nombre.
+     * El indice unico sobre 'nombre' garantiza que no se duplique.
+     */
+    insertarEtiqueta: async function (nombre) {
+        await coleccion('etiquetas').updateOne(
+            { nombre: nombre },
+            { $setOnInsert: { nombre: nombre, creadaEn: new Date() } },
+            { upsert: true }
+        );
+        return nombre;
+    },
+
+    /**
+     * Devuelve todas las etiquetas conocidas, ordenadas.
+     */
+    obtenerEtiquetas: async function () {
+        return coleccion('etiquetas').find({}, { sort: { nombre: 1 } }).toArray();
+    },
+
+    /**
+     * Devuelve los ingredientes distintos que ya aparecen en alguna receta.
+     */
+    obtenerIngredientes: async function () {
+        const ingredientes = await coleccion('recetas').distinct('ingredientes');
+        return ingredientes.sort(function (a, b) { return a.localeCompare(b, 'es'); });
+    },
+
+    /**
      * Devuelve todos los usuarios que coinciden con el criterio.
      */
     obtenerUsuarios: async function (criterio = {}) {
         return coleccion('usuarios').find(criterio).toArray();
+    },
+
+    /**
+     * Borra la etiqueta del listado general (no toca las recetas).
+     */
+    borrarEtiqueta: async function (nombre) {
+        const resultado = await coleccion('etiquetas').deleteOne({ nombre: nombre });
+        return resultado.deletedCount;
+    },
+
+    /**
+     * Borra los usuarios que coinciden con el criterio.
+     */
+    borrarUsuario: async function (criterio) {
+        const resultado = await coleccion('usuarios').deleteMany(criterio);
+        return resultado.deletedCount;
     }
 };
