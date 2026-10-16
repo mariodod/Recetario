@@ -76,6 +76,26 @@
 </ol>
 {% endif %}
 
+{% if relacionadas.length > 0 %}
+<h2 class="h5 mt-4">También podría gustarte</h2>
+<ul class="list-group mb-4">
+    {% for sugerida in relacionadas %}
+    <li class="list-group-item d-flex align-items-center">
+        {% if sugerida.foto %}
+        <img src="/fotos/{{ sugerida.foto }}" alt="" height="48" class="rounded border me-2 flex-shrink-0" />
+        {% endif %}
+        <a href="/receta/{{ sugerida._id }}" class="me-1">{{ sugerida.titulo }}</a>
+        {% if sugerida.tiempo %}
+        <span class="badge bg-secondary">{{ sugerida.tiempo }} min</span>
+        {% endif %}
+        {% for etiqueta in sugerida.etiquetas %}
+        <span class="badge bg-info text-dark">{{ etiqueta }}</span>
+        {% endfor %}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
 <a class="btn btn-outline-secondary" href="/recetas">Volver a las recetas</a>
 {% endif %}
 {% endblock %}

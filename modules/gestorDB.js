@@ -48,6 +48,18 @@ async function crearIndices() {
         await db.collection('etiquetas').createIndex({ nombre: 1 }, { unique: true });
         await db.collection('recetas').createIndex({ momento: 1 });
         await db.collection('recetas').createIndex({ etiquetas: 1 });
+
+        //Busqueda textual sobre titulo, etiquetas, ingredientes y preparacion.
+        //El peso decide cuanta mas relevancia tiene un acierto en cada campo y
+        //el idioma espanol descarta las palabras vacias (de, la, con...).
+        await db.collection('recetas').createIndex(
+            { titulo: 'text', etiquetas: 'text', ingredientes: 'text', preparacion: 'text' },
+            {
+                name: 'busqueda_textual',
+                default_language: 'spanish',
+                weights: { titulo: 10, etiquetas: 5, ingredientes: 3, preparacion: 1 }
+            }
+        );
     } catch (err) {
         console.warn('Aviso al crear los indices de MongoDB: ' + err.message);
     }
@@ -127,12 +139,20 @@ module.exports = {
     /**
      * Devuelve una pagina de 10 recetas junto al total de documentos que
      * cumplen el criterio (necesario para calcular la ultima pagina).
+     * Con `orden` se puede cambiar el criterio de ordenacion; para la
+     * busqueda textual se ordena por relevancia con { score: { $meta:
+     * 'textScore' } }.
      */
-    obtenerRecetasPg: async function (criterio = {}, pg = 1) {
+    obtenerRecetasPg: async function (criterio = {}, pg = 1, orden = null) {
         const recetas = coleccion('recetas');
+        let consulta = recetas.find(criterio);
+        if (orden) {
+            consulta = consulta.sort(orden);
+        }
+
         const [total, pagina] = await Promise.all([
             recetas.countDocuments(criterio),
-            recetas.find(criterio).skip((pg - 1) * 10).limit(10).toArray()
+            consulta.skip((pg - 1) * 10).limit(10).toArray()
         ]);
         return { recetas: pagina, total: total };
     },
@@ -169,6 +189,47 @@ module.exports = {
         return coleccion('recetas').aggregate([
             { $match: criterio },
             { $sample: { size: n } }
+        ]).toArray();
+    },
+
+    /**
+     * Devuelve recetas relacionadas con la dada:  las que comparten etiquetas
+     * o ingredientes, por ese orden de importancia, la propia receta siempre
+     * fuera y un numero limitado de resultados.
+     */
+    obtenerRecetasRelacionadas: async function (receta, limite = 4) {
+        const etiquetas = receta.etiquetas || [];
+        const ingredientes = receta.ingredientes || [];
+
+        if (etiquetas.length === 0 && ingredientes.length === 0) {
+            return [];
+        }
+
+        return coleccion('recetas').aggregate([
+            {
+                $match: {
+                    _id: { $ne: receta._id },
+                    $or: [
+                        { etiquetas: { $in: etiquetas } },
+                        { ingredientes: { $in: ingredientes } }
+                    ]
+                }
+            },
+            {
+                //Cuenta lo que comparten:  cada etiqueta y cada ingrediente
+                //comun suma uno, y las que mas suman salen primero
+                $addFields: {
+                    coincidencias: {
+                        $add: [
+                            { $size: { $setIntersection: [{ $ifNull: ['$etiquetas', []] }, etiquetas] } },
+                            { $size: { $setIntersection: [{ $ifNull: ['$ingredientes', []] }, ingredientes] } }
+                        ]
+                    }
+                }
+            },
+            { $sort: { coincidencias: -1, titulo: 1 } },
+            { $limit: limite },
+            { $project: { coincidencias: 0 } }
         ]).toArray();
     },
 

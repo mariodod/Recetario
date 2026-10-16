@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const BASE = 'http://localhost:8081';
 const gestorDB = require('../modules/gestorDB.js');
+const { extraerFiltros, consultaDeFiltros } = require('../modules/filtros.js');
 const { CARPETA, borrarFoto } = require('../modules/fotos.js');
 
 //PNG de 1x1 valido, para las pruebas de subida de fotos
@@ -138,6 +139,39 @@ async function main() {
         sinResultados.texto.includes('Ninguna receta cumple'));
 
     // ------------------------------------------------------------------
+    // Busqueda textual
+    // ------------------------------------------------------------------
+    const buscado = await anonimo.get('/recetas?q=curry');
+    comprobar('la busqueda textual encuentra recetas por el titulo',
+        buscado.texto.includes('Pollo al curry'));
+    comprobar('la busqueda se puede hacer desde la barra de navegacion',
+        buscado.texto.includes('placeholder="Buscar recetas"')
+        && buscado.texto.includes('value="curry"'));
+
+    const porPreparacion = await anonimo.get('/recetas?q=tritura');
+    comprobar('la busqueda textual busca tambien dentro de la preparacion',
+        porPreparacion.texto.includes('Crema de calabaza'));
+
+    const combinada = await anonimo.get('/recetas?q=pollo&dificultad=facil');
+    comprobar('la busqueda se combina con el resto de filtros',
+        combinada.texto.includes('Ensalada César')       // contiene 'pollo' y es facil
+        && !combinada.texto.includes('Pollo al curry')    // es 'media'
+        && !combinada.texto.includes('Cocido madrileño'));// es 'dificil'
+
+    const ordenRelevancia = await anonimo.get('/recetas?q=pollo');
+    const primerResultado = (ordenRelevancia.texto.match(/<a href="\/receta\/[a-f0-9]{24}" class="me-1">([^<]+)</) || [])[1];
+    comprobar('la busqueda ordena por relevancia, y el titulo pesa mas',
+        primerResultado === 'Pollo al curry');
+
+    comprobar('la busqueda se conserva al refinar los filtros y al paginar',
+        ordenRelevancia.texto.includes('name="q" value="pollo"')
+        && consultaDeFiltros(extraerFiltros({ q: 'pollo', dificultad: 'facil' })) === 'q=pollo&dificultad=facil&');
+
+    const sinCoincidencias = await anonimo.get('/recetas?q=zzzznoexiste');
+    comprobar('una busqueda sin resultados menciona el termino buscado',
+        sinCoincidencias.texto.includes('Ninguna receta coincide con'));
+
+    // ------------------------------------------------------------------
     // Detalle de receta (HTML, JSON, pasos y video)
     // ------------------------------------------------------------------
     gestorDB.init(process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario');
@@ -150,6 +184,12 @@ async function main() {
         detalle.status === 200 && detalle.texto.includes('<h1>'));
     comprobar('el detalle numera los pasos de la preparacion',
         detalle.texto.includes('list-group-numbered') && detalle.texto.includes('Sofrie la carne picada'));
+
+    const bloqueSugerencias = detalle.texto.split('También podría gustarte')[1] || '';
+    comprobar('el detalle sugiere recetas que comparten etiqueta e ingrediente',
+        bloqueSugerencias.includes('Croquetas de jamón'));
+    comprobar('las sugerencias dejan fuera la propia receta',
+        !bloqueSugerencias.includes('Lasaña de la abuela'));
 
     const comoJson = await anonimo.get('/receta/' + id, { headers: { Accept: 'application/json' } });
     const recetaJson = JSON.parse(comoJson.texto);

@@ -29,6 +29,12 @@
                     <li class="nav-item" id="addReceta"><a class="nav-link" href="/receta">Añadir receta</a></li>
                     <li class="nav-item" id="menu"><a class="nav-link" href="/menu">Menu</a></li>
                 </ul>
+                <form class="d-flex mt-2 mt-lg-0 me-lg-3" role="search" method="GET" action="/recetas">
+                    <input class="form-control form-control-sm me-2" type="search" name="q"
+                        value="{{ filtros.q if filtros else '' }}" placeholder="Buscar recetas"
+                        aria-label="Buscar recetas" />
+                    <button class="btn btn-outline-light btn-sm" type="submit">Buscar</button>
+                </form>
                 <ul class="navbar-nav">
                     {% if usuario %}
                     <li class="nav-item"><span class="navbar-text me-3">{{ usuario }}</span></li>

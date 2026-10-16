@@ -42,9 +42,14 @@ se ha migrado:
 - **Listado y filtros** (`/recetas`):  por titulo, tiempo maximo, dificultad,
   etiqueta e ingrediente. Se combinan entre si y con la paginacion, y todo va
   en la querystring para poder compartir la url.
+- **Busqueda textual** (barra de navegacion y `?q=...`):  busca en el titulo,
+  las etiquetas, los ingredientes y la preparacion, ordena por relevancia y se
+  combina con el resto de filtros.
 - **Receta del dia** (portada):  se elige a partir de la fecha, asi que no
   cambia durante el dia y no hace falta guardar estado.
 - **Menu aleatorio** (`/menu`):  solo comidas, solo cenas, ambos o postres.
+- **Recetas relacionadas**:  el detalle de cada receta sugiere hasta cuatro
+  que comparten etiquetas o ingredientes, por numero de coincidencias.
 - **Recetas completas**:  ademas del titulo, el tiempo, la dificultad y el
   momento del dia, cada receta tiene sus ingredientes, los pasos de la
   preparacion (numerados), una foto y un video.
@@ -69,6 +74,12 @@ etiquetas  { nombre, creadaEn }                    // indice unico sobre nombre
 
 Los ingredientes y la preparacion se escriben en un textarea, uno por linea;
 las etiquetas van separadas por comas.
+
+La busqueda textual se apoya en un indice de texto de MongoDB
+(`busqueda_textual`) sobre titulo, etiquetas, ingredientes y preparacion:  los
+pesos hacen que un acierto en el titulo valga mas que en la preparacion, y el
+idioma espanol descarta las palabras vacias (de, la, con...). El indice se crea
+solo, al conectar.
 
 ## Puesta en marcha
 
@@ -111,9 +122,10 @@ las etiquetas van separadas por comas.
    npm test
    ```
 
-   Recorre todas las rutas y comprueba filtros, paginacion, sesiones, menu,
-   alta, edicion y borrado de recetas, subida de fotos, incrustacion de videos
-   y escape de HTML. Los datos que crea la prueba se borran al terminar.
+   Recorre todas las rutas y comprueba filtros, busqueda textual, paginacion,
+   recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
+   subida de fotos, incrustacion de videos y escape de HTML. Los datos que crea
+   la prueba se borran al terminar.
 
 ## Rutas
 

@@ -54,8 +54,11 @@ module.exports = function (app, gestorDB) {
         const criterio = criterioDeFiltros(filtros);
         const pg = Math.max(parseInt(req.query.pg, 10) || 1, 1);
 
+        //Con busqueda textual se ordena por relevancia y sin ella, por titulo
+        const orden = filtros.q ? { score: { $meta: 'textScore' } } : { titulo: 1 };
+
         const [datos, etiquetas, ingredientes] = await Promise.all([
-            gestorDB.obtenerRecetasPg(criterio, pg),
+            gestorDB.obtenerRecetasPg(criterio, pg, orden),
             gestorDB.obtenerEtiquetas(),
             gestorDB.obtenerIngredientes()
         ]);
@@ -92,9 +95,18 @@ module.exports = function (app, gestorDB) {
             return noExiste(res);
         }
 
+        //Las sugerencias solo hacen falta en la pagina, no en el JSON
+        const relacionadas = req.accepts('html')
+            ? await gestorDB.obtenerRecetasRelacionadas(receta, 4)
+            : [];
+
         res.format({
             html: function () {
-                res.render('receta.html', { receta: receta, video: embeberVideo(receta.video) });
+                res.render('receta.html', {
+                    receta: receta,
+                    video: embeberVideo(receta.video),
+                    relacionadas: relacionadas
+                });
             },
             json: function () { res.json(receta); }
         });

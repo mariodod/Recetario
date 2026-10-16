@@ -3,6 +3,8 @@
  *
  * Los filtros viajan por la querystring (?titulo=...&dificultad=facil), de
  * modo que se pueden compartir con un enlace y combinarse con la paginacion.
+ * `q` es la busqueda textual y se combina con el resto igual que cualquier
+ * otro filtro.
  */
 
 const DIFICULTADES = ['facil', 'media', 'dificil'];
@@ -14,6 +16,7 @@ const MOMENTOS = ['desayuno', 'comida', 'cena', 'postre'];
  */
 function extraerFiltros(query = {}) {
     const filtros = {
+        q: String(query.q || '').trim(),
         titulo: String(query.titulo || '').trim(),
         tiempo: parseInt(query.tiempo, 10),
         dificultad: DIFICULTADES.includes(query.dificultad) ? query.dificultad : '',
@@ -32,10 +35,16 @@ function extraerFiltros(query = {}) {
  * Convierte los filtros en un criterio de busqueda de MongoDB.
  * El titulo y el ingrediente se buscan como subcadena, sin distinguir
  * mayusculas, y escapando lo que pueda interpretarse como expresion regular.
+ * La busqueda textual (`q`) usa el indice de texto: busca en el titulo, las
+ * etiquetas, los ingredientes y la preparacion, y se puede combinar con el
+ * resto de filtros.
  */
 function criterioDeFiltros(filtros) {
     const criterio = {};
 
+    if (filtros.q) {
+        criterio.$text = { $search: filtros.q };
+    }
     if (filtros.titulo) {
         criterio.titulo = { $regex: escaparRegExp(filtros.titulo), $options: 'i' };
     }
@@ -66,6 +75,7 @@ function escaparRegExp(texto) {
 function consultaDeFiltros(filtros) {
     const params = new URLSearchParams();
 
+    if (filtros.q) params.set('q', filtros.q);
     if (filtros.titulo) params.set('titulo', filtros.titulo);
     if (filtros.tiempo) params.set('tiempo', String(filtros.tiempo));
     if (filtros.dificultad) params.set('dificultad', filtros.dificultad);
