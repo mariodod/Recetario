@@ -78,8 +78,8 @@ las etiquetas van separadas por comas.
 La busqueda textual se apoya en un indice de texto de MongoDB
 (`busqueda_textual`) sobre titulo, etiquetas, ingredientes y preparacion:  los
 pesos hacen que un acierto en el titulo valga mas que en la preparacion, y el
-idioma espanol descarta las palabras vacias (de, la, con...). El indice se crea
-solo, al conectar.
+stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
+'cocinando' dan con la misma receta. El indice se crea solo, al conectar.
 
 ## Puesta en marcha
 

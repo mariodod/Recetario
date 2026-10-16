@@ -51,7 +51,8 @@ async function crearIndices() {
 
         //Busqueda textual sobre titulo, etiquetas, ingredientes y preparacion.
         //El peso decide cuanta mas relevancia tiene un acierto en cada campo y
-        //el idioma espanol descarta las palabras vacias (de, la, con...).
+        //el stemmer en espanol busca por raiz, asi que 'cocinar', 'cocina' y
+        //'cocinando' dan con la misma receta.
         await db.collection('recetas').createIndex(
             { titulo: 'text', etiquetas: 'text', ingredientes: 'text', preparacion: 'text' },
             {
