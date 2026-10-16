@@ -1,9 +1,7 @@
-module.exports = function (app, swig, gestorDB) {
+module.exports = function (app, gestorDB) {
 
     app.get('/menu', function (req, res) {
-        var respuesta = swig.renderFile('views/menu.html', {});
-
-        res.send(respuesta);
+        res.render('menu.html');
     });
 
 };

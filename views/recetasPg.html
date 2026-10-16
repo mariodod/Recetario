@@ -1,36 +1,52 @@
-<!-- http://node-swig.github.io/swig-templates/docs/ -->
+<!-- https://mozilla.github.io/nunjucks/ -->
 {% extends "base.html" %}
 
 {% block titulo %}Recetas{% endblock %}
 
 {% block contenido %}
-<ul>
+<ul class="list-group">
     {% for receta in recetas %}
-    <li>
+    <li class="list-group-item">
         {{ receta.titulo }}
-        {{ receta.tiempo }}
+        {% if receta.tiempo %}
+        <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
+        {% endif %}
     </li>
     {% endfor %}
 </ul>
 {% endblock %}
 
 {% block paginacion %}
-<!-- Primera -->
-<a href="/recetas?pg=1">Primera</a>
+<nav aria-label="Paginación de recetas">
+    <ul class="pagination">
+        <!-- Primera -->
+        <li class="page-item {% if pgActual == 1 %}disabled{% endif %}">
+            <a class="page-link" href="/recetas?pg=1">Primera</a>
+        </li>
 
-<!-- Anteior (si la hay) -->
-{% if pgActual-1 >= 1 %}
-<a href="/recetas?pg={{ pgActual - 1 }}">{{ pgActual - 1 }}</a>
-{% endif %}
+        <!-- Anterior (si la hay) -->
+        {% if pgActual - 1 >= 1 %}
+        <li class="page-item">
+            <a class="page-link" href="/recetas?pg={{ pgActual - 1 }}">{{ pgActual - 1 }}</a>
+        </li>
+        {% endif %}
 
-<!-- Actual -->
-<a href="/recetas?pg={{ pgActual }}">{{ pgActual }}</a>
+        <!-- Actual -->
+        <li class="page-item active">
+            <a class="page-link" href="/recetas?pg={{ pgActual }}">{{ pgActual }}</a>
+        </li>
 
-<!-- Siguiente (si la hay) -->
-{% if pgActual+1 <= pgUltima %}
-<a href="/recetas?pg={{ pgActual + 1 }}">{{ pgActual + 1 }}</a>
-{% endif %}
+        <!-- Siguiente (si la hay) -->
+        {% if pgActual + 1 <= pgUltima %}
+        <li class="page-item">
+            <a class="page-link" href="/recetas?pg={{ pgActual + 1 }}">{{ pgActual + 1 }}</a>
+        </li>
+        {% endif %}
 
-<!-- Ultima -->
-<a href="/recetas?pg={{ pgUltima }}">Ultima</a>
+        <!-- Última -->
+        <li class="page-item {% if pgActual == pgUltima %}disabled{% endif %}">
+            <a class="page-link" href="/recetas?pg={{ pgUltima }}">Última</a>
+        </li>
+    </ul>
+</nav>
 {% endblock %}

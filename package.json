@@ -1,23 +1,35 @@
 {
   "name": "recetario",
-  "version": "0.1.0",
-  "description": "recetario",
+  "version": "0.2.0",
+  "description": "Aplicacion para tener un libro de recetas online",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified! Configure in package.json\" && exit 1"
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "seed": "node scripts/seed.js",
+    "test": "node scripts/smoke-test.js"
   },
   "repository": "https://github.com/mariodod/Recetario.git",
   "keywords": [
-    "node.js"
+    "node.js",
+    "express",
+    "mongodb",
+    "nunjucks"
   ],
   "author": "Mario Del Olmo Diaz",
   "license": "MIT",
   "readmeFilename": "README.md",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
-    "body-parser": "^1.19.0",
-    "express": "^4.17.1",
-    "express-session": "^1.17.0",
-    "mongodb": "^2.2.33",
-    "swig": "^1.4.2"
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "express-session": "^1.19.0",
+    "mongodb": "^7.7.0",
+    "nunjucks": "^3.2.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }

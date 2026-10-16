@@ -1,14 +1,16 @@
-<!-- http://node-swig.github.io/swig-templates/docs/ -->
+<!-- https://mozilla.github.io/nunjucks/ -->
 {% extends "base.html" %}
 
 {% block titulo %}Recetas{% endblock %}
 
 {% block contenido %}
-<ul>
+<ul class="list-group">
     {% for receta in recetas %}
-    <li>
+    <li class="list-group-item">
         {{ receta.titulo }}
-        {{ receta.tiempo }}
+        {% if receta.tiempo %}
+        <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
+        {% endif %}
     </li>
     {% endfor %}
 </ul>

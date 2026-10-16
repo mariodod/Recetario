@@ -1,70 +1,79 @@
-module.exports = function (app, swig, gestorDB) {
-    app.get('/recetas', function (req, res) {
-        if (req.query.pg == null) {
-            var recetas = gestorDB.obtenerRecetas({}, function (recetas) {
-                //Composicion y retorno de la respuesta
-                var respuesta = swig.renderFile('views/recetas.html', {
-                    recetas: recetas
-                });
+const { ObjectId } = require('mongodb');
 
-                res.send(respuesta);
+module.exports = function (app, gestorDB) {
+    app.get('/recetas', async function (req, res) {
+        if (req.query.pg == null) {
+            const recetas = await gestorDB.obtenerRecetas({});
+
+            //Composicion y retorno de la respuesta
+            res.render('recetas.html', {
+                recetas: recetas
             });
         } else {
-            var pg = parseInt(req.query.pg);
-            var recetas = gestorDB.obtenerRecetasPg({}, function (recetas, total) {
-                //Composicion y retorno de la respuesta
-                var pgUltima = total / 10;
-                if (total % 10 > 0)
-                    pgUltima++;
+            const pg = Math.max(parseInt(req.query.pg, 10) || 1, 1);
+            const datos = await gestorDB.obtenerRecetasPg({}, pg);
 
-                var respuesta = swig.renderFile('views/recetasPg.html', {
-                    recetas: recetas,
-                    pgActual: pg,
-                    pgUltima: pgUltima
-                });
+            const pgUltima = Math.max(Math.ceil(datos.total / 10), 1);
 
-                res.send(respuesta);
+            //Fuera de rango: redirigimos a la ultima pagina que existe
+            if (pg > pgUltima) {
+                return res.redirect('/recetas?pg=' + pgUltima);
+            }
+
+            //Composicion y retorno de la respuesta
+            res.render('recetasPg.html', {
+                recetas: datos.recetas,
+                pgActual: pg,
+                pgUltima: pgUltima
             });
         }
     });
 
-    app.get('/receta/:id', function (req, res) {
-        var oid = gestorDB.mongo.ObjectID(req.params.id);
-        var criterio = { "_id": oid };
+    app.get('/receta/:id', async function (req, res) {
+        //ObjectId valida el identificador: si no lo es lanza BSONError
+        let criterio;
+        try {
+            criterio = { "_id": new ObjectId(req.params.id) };
+        } catch (err) {
+            return res.status(404).send("La receta no existe");
+        }
 
-        gestorDB.obtenerRecetas(criterio, function (recetas) {
-            if (recetas == null) {
-                res.send("La receta no existe");
-            } else {
-                res.json(recetas);
-            }
-        });
+        const recetas = await gestorDB.obtenerRecetas(criterio);
+
+        if (recetas.length === 0) {
+            res.status(404).send("La receta no existe");
+        } else {
+            res.json(recetas[0]);
+        }
     });
 
     app.get('/receta', function (req, res) {
-        var respuesta = swig.renderFile('views/receta-form.html', {});
-
-        res.send(respuesta);
+        res.render('receta-form.html', { receta: {} });
     });
 
-    app.post('/receta', function (req, res) {
-        //Pueden ser null o undefined
-        var receta = {
-            titulo: req.body.titulo,
-            tiempo: req.body.tiempo
+    app.post('/receta', async function (req, res) {
+        const titulo = (req.body.titulo || '').trim();
+        const tiempo = parseInt(req.body.tiempo, 10);
+
+        if (!titulo) {
+            return res.status(400).render('receta-form.html', {
+                receta: req.body,
+                error: 'El titulo es obligatorio'
+            });
         }
 
-        gestorDB.insertarReceta(receta, function (id) {
-            if (id == null) {
-                res.send("Error al insertar");
-            } else {
-                res.send("Agregada id: " + id);
-            }
-        });
-        res.send('registrada receta ' + titulo);
-    })
+        const receta = {
+            titulo: titulo,
+            tiempo: Number.isFinite(tiempo) && tiempo > 0 ? tiempo : null,
+            creadaEn: new Date()
+        };
+
+        const id = await gestorDB.insertarReceta(receta);
+
+        res.redirect('/recetas?mensaje=Receta+creada&tipoMensaje=alert-success');
+    });
 
     app.put('/receta', function (req, res) {
         res.send('actualizar receta');
-    })
+    });
 };

@@ -1,5 +1,5 @@
 <html>
-<!-- http://node-swig.github.io/swig-templates/docs/ -->
+<!-- https://mozilla.github.io/nunjucks/ -->
 
 <head>
     <title>
@@ -7,65 +7,53 @@
     </title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" />
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.0/jquery.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
     {% block scripts %} {% endblock %}
 </head>
 
 <body>
     <!-- Barra de Navegación superior -->
-    <nav class="navbar navbar-inverse">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-            </div>
-            <div class="nav navbar-nav" id="myNavbar">
-                <ul class="nav navbar-nav">
-                    <li><img src="../public/images/Gorro_chef.png" alt="gorro"/></li>
-                    <li id="recetas"><a href="/recetas">Recetas</a></li>
-                    <li id="addReceta"><a href="/receta">Añadir receta</a></li>
-                    <li id="menu"><a href="/menu">Menu</a></li>
+            <a class="navbar-brand" href="/">
+                <img src="/images/Gorro_chef.png" alt="gorro" height="30" class="d-inline-block align-text-top" />
+                ReceMario
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#myNavbar"
+                aria-controls="myNavbar" aria-expanded="false" aria-label="Alternar navegación">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="myNavbar">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item" id="recetas"><a class="nav-link" href="/recetas">Recetas</a></li>
+                    <li class="nav-item" id="addReceta"><a class="nav-link" href="/receta">Añadir receta</a></li>
+                    <li class="nav-item" id="menu"><a class="nav-link" href="/menu">Menu</a></li>
                 </ul>
-                <!-- <ul class="nav navbar-nav navbar-right">
-                    {% if user == null %}
-                    <li><a href="/signup"><span class="glyphicon glyphicon-user"></span> Registrate</a></li>
-                    <li><a href="/login"><span class="glyphicon glyphicon-log-in"></span> Identifícate</a></li>
+                <ul class="navbar-nav">
+                    {% if usuario %}
+                    <li class="nav-item"><span class="navbar-text me-3">{{ usuario }}</span></li>
+                    <li class="nav-item"><a class="nav-link" href="/logout">Cerrar sesión</a></li>
+                    {% else %}
+                    <li class="nav-item"><a class="nav-link" href="/login">Identifícate</a></li>
                     {% endif %}
-                    {% if user != null %}
-                    <li><a href="/logout"><span class="glyphicon glyphicon-log-out"></span> Cerrar Sesion</a></li>
-                    {% endif %}
-                </ul> -->
+                </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container">
-        <script>
-            var mensaje = getUrlParameter('mensaje');
-            var tipoMensaje = getUrlParameter('tipoMensaje');
-            if (mensaje != '') {
-                if (tipoMensaje == '') {
-                    tipoMensaje = 'alert-info ';
-                }
-                $(".container").append("<div class='" + tipoMensaje + "'>" + mensaje + " </div>");
-            }
+    <div class="container mt-3">
+        <!-- Avisos (?mensaje=...&tipoMensaje=alert-success|alert-info|alert-warning|alert-danger) -->
+        {% if mensaje %}
+        <div class="alert {{ tipoMensaje }}" role="alert">{{ mensaje }}</div>
+        {% endif %}
 
-            function getUrlParameter(name) {
-                name = name.replace(/[\ [] /, '\\ [').replace(/[\]] /, '\\]');
-                var regex = new RegExp('[\\ ? & ]' + name + '=([^&#]*)');
-                var results = regex.exec(location.search);
-                return results === null ? '' : decodeURIComponent(results[1].replace(/\ + /g, ' '));
-            }; 
-        </script>
         <!-- Contenido -->
         {% block contenido %}
         <p> Redefinir </p>
         {% endblock %}
+
+        <!-- Paginación -->
+        {% block paginacion %} {% endblock %}
     </div>
 </body>
 
