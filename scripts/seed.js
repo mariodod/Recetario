@@ -226,9 +226,22 @@ async function main() {
         console.log('Ya hay ' + existentes.length + ' recetas: no se inserta ninguna.');
     } else {
         for (const receta of RECETAS) {
-            await gestorDB.insertarReceta(Object.assign({}, receta, { creadaEn: new Date() }));
+            await gestorDB.insertarReceta(Object.assign({}, receta, {
+                autor: USUARIO.username,
+                creadaEn: new Date()
+            }));
         }
         console.log('Insertadas ' + RECETAS.length + ' recetas de ejemplo.');
+    }
+
+    //Recetas anteriores a la autoria:  sin autor no puede editarlas nadie, asi
+    //que se las asignamos al usuario de ejemplo
+    const sinAutor = await gestorDB.obtenerRecetas({ autor: { $exists: false } });
+    for (const receta of sinAutor) {
+        await gestorDB.actualizarReceta({ _id: receta._id }, { autor: USUARIO.username });
+    }
+    if (sinAutor.length > 0) {
+        console.log('Asignadas ' + sinAutor.length + ' recetas antiguas a "' + USUARIO.username + '".');
     }
 
     //Etiquetas usadas por las recetas, para el filtro y el autocompletado

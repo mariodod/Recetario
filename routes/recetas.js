@@ -23,6 +23,24 @@ function paraElFormulario(receta) {
     });
 }
 
+/**
+ * Solo el autor de una receta puede editarla o borrarla. Las recetas sin
+ * autor no las puede tocar nadie.
+ */
+function esDelAutor(receta, req) {
+    return Boolean(receta.autor) && receta.autor === req.session.usuario;
+}
+
+/**
+ * Vuelve al detalle de la receta avisando de que no toca.
+ */
+function sinPermisos(res, receta, accion) {
+    const mensaje = 'Solo el autor de la receta puede ' + accion;
+    return res.redirect(
+        '/receta/' + receta._id + '?mensaje=' + encodeURIComponent(mensaje) + '&tipoMensaje=alert-danger'
+    );
+}
+
 module.exports = function (app, gestorDB) {
 
     /**
@@ -141,7 +159,11 @@ module.exports = function (app, gestorDB) {
             });
         }
 
-        const receta = Object.assign({}, resultado.receta, { creadaEn: new Date() });
+        //El autor sale de la sesion, nunca del formulario
+        const receta = Object.assign({}, resultado.receta, {
+            autor: req.session.usuario,
+            creadaEn: new Date()
+        });
         const id = await gestorDB.insertarReceta(receta);
 
         //Las etiquetas nuevas pasan a formar parte del listado general,
@@ -161,6 +183,9 @@ module.exports = function (app, gestorDB) {
         if (!existente) {
             return noExiste(res);
         }
+        if (!esDelAutor(existente, req)) {
+            return sinPermisos(res, existente, 'editarla');
+        }
 
         await pintarFormulario(res, { receta: paraElFormulario(existente), modo: 'editar' });
     });
@@ -170,6 +195,10 @@ module.exports = function (app, gestorDB) {
         if (!existente) {
             if (req.file) await borrarFoto(req.file.filename);
             return noExiste(res);
+        }
+        if (!esDelAutor(existente, req)) {
+            if (req.file) await borrarFoto(req.file.filename);
+            return sinPermisos(res, existente, 'editarla');
         }
 
         //La foto nueva sustituye a la vieja; si no hay nueva se conserva,
@@ -215,6 +244,9 @@ module.exports = function (app, gestorDB) {
         const existente = await gestorDB.obtenerRecetaPorId(req.params.id);
         if (!existente) {
             return noExiste(res);
+        }
+        if (!esDelAutor(existente, req)) {
+            return sinPermisos(res, existente, 'borrarla');
         }
 
         await gestorDB.eliminarReceta({ _id: existente._id });

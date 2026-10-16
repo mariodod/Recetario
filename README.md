@@ -60,14 +60,15 @@ se ha migrado:
   cuando se quita de la receta o cuando se borra la receta.
 - **Etiquetas**:  cada receta lleva las suyas y, al guardarlas, se añaden al
   listado general del que salen el filtro y el autocompletado del formulario.
-- **Cuentas**:  registro e inicio de sesion. Guardar, editar y borrar recetas
-  exige identificarse.
+- **Cuentas**:  registro e inicio de sesion. Guardar recetas exige
+  identificarse y cada receta recuerda quien la creo:  solo su autor puede
+  editarla o borrarla, y el detalle siempre dice de quien es.
 
 ### Modelo de datos
 
 ```
 recetas    { titulo, tiempo, dificultad, momento, ingredientes[], preparacion[],
-             etiquetas[], video, foto, creadaEn, actualizadaEn }
+             etiquetas[], video, foto, autor, creadaEn, actualizadaEn }
 usuarios   { username, password, creadaEn }        // password: scrypt con sal
 etiquetas  { nombre, creadaEn }                    // indice unico sobre nombre
 ```
@@ -104,8 +105,9 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    npm run seed
    ```
 
-   Crea 20 recetas con sus ingredientes, preparación y etiquetas, y el
-   usuario `mario` / `recetario123`.
+   Crea 20 recetas con sus ingredientes, preparación y etiquetas, las firma con
+   el usuario `mario` / `recetario123` y, si encuentra recetas sin autor de
+   antes, se las asigna a ese mismo usuario.
 
 4. **Arrancar**:
 
@@ -124,8 +126,8 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 
    Recorre todas las rutas y comprueba filtros, busqueda textual, paginacion,
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
-   subida de fotos, incrustacion de videos y escape de HTML. Los datos que crea
-   la prueba se borran al terminar.
+   permisos de autor, subida de fotos, incrustacion de videos y escape de HTML.
+   Los datos que crea la prueba se borran al terminar.
 
 ## Rutas
 
@@ -158,7 +160,7 @@ modules/
   video.js              Incrustacion de videos de YouTube y Vimeo
   fotos.js              Subida y borrado de fotos
 routes/
-  recetas.js            Listado, filtros, detalle y alta
+  recetas.js            Listado, filtros, detalle, alta, edicion y borrado
   menu.js               Menu aleatorio
   users.js              Registro, login y logout
 scripts/
@@ -174,8 +176,9 @@ los filtros van en la misma plantilla.
 
 ## Pendiente
 
-- Cualquier usuario identificado puede editar o borrar cualquier receta: todavia
-  no hay autoría ni permisos por receta.
+- No hay listado de "mis recetas" ni forma de ceder la autoría a otro usuario.
+  Las recetas sin autor no las puede editar nadie; `npm run seed` se las
+  asigna al usuario de ejemplo.
 - Una receta por foto. Con varias fotos habria que pensar como organizarlas.
 - Las etiquetas se escriben separadas por comas, asi que una etiqueta que
   contenga comas no se puede guardar tal cual (los ingredientes y los pasos no

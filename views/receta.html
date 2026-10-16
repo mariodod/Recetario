@@ -11,6 +11,9 @@
 <h1>{{ receta.titulo }}</h1>
 
 <p class="mb-2">
+    {% if receta.autor %}
+    <span class="badge bg-light text-dark border">Por {{ receta.autor }}</span>
+    {% endif %}
     {% if receta.tiempo %}
     <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
     {% endif %}
@@ -25,7 +28,7 @@
     {% endfor %}
 </p>
 
-{% if usuario %}
+{% if usuario and receta.autor == usuario %}
 <div class="mb-3">
     <a class="btn btn-outline-primary" href="/receta/{{ receta._id }}/editar">Editar</a>
     <form class="d-inline" method="POST" action="/receta/{{ receta._id }}/borrar"

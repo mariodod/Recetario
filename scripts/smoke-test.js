@@ -263,8 +263,9 @@ async function main() {
     const trasLogout = await login.get('/');
     comprobar('el logout cierra la sesion',
         logout.status === 302 && trasLogout.texto.includes('Identifícate'));
+    const detalleSinSesion = await anonimo.get('/receta/' + id);
     comprobar('sin sesion no aparecen los botones de editar',
-        !trasLogout.texto.includes('/editar'));
+        !detalleSinSesion.texto.includes('/editar'));
 
     // ------------------------------------------------------------------
     // Alta de receta (con la sesion del registro)
@@ -310,12 +311,45 @@ async function main() {
     const conVideo = await anonimo.get('/receta/' + idPrueba);
     comprobar('el video de YouTube se incrusta en el detalle',
         conVideo.texto.includes('youtube-nocookie.com/embed/dQw4w9WgXcQ'));
+    comprobar('la receta guarda como autor a quien la crea', recetaGuardada.autor === usuario);
     const formEdicion = await registro.get('/receta/' + idPrueba + '/editar');
     comprobar('el formulario de edicion viene relleno con la receta', formEdicion.status === 200
         && formEdicion.texto.includes('value="Receta de prueba"')
         && formEdicion.texto.includes('Bate los huevos.\nCuaja a fuego suave')
         && formEdicion.texto.includes('huevo\nsal\npimienta')
         && formEdicion.texto.includes('https://www.youtube.com/watch?v=dQw4w9WgXcQ'));
+
+    // ------------------------------------------------------------------
+    // Autoria:  solo el autor de una receta puede tocarla
+    // ------------------------------------------------------------------
+    const vistaAutor = await registro.get('/receta/' + idPrueba);
+    comprobar('el autor de la receta si ve los botones de editar y borrar',
+        vistaAutor.texto.includes('/editar') && vistaAutor.texto.includes('/borrar'));
+
+    const mario = crearNavegador();
+    await mario.post('/login', { username: 'mario', password: process.env.SEED_PASSWORD || 'recetario123' });
+
+    const edicionAjena = await mario.get('/receta/' + idPrueba + '/editar');
+    comprobar('otro usuario no puede abrir el formulario de edicion ajeno', edicionAjena.status === 302);
+
+    const vistaAjena = await mario.get('/receta/' + idPrueba);
+    comprobar('el detalle no ofrece editar ni borrar a quien no es el autor',
+        !vistaAjena.texto.includes('/editar') && !vistaAjena.texto.includes('/borrar'));
+
+    const borradoAjeno = await mario.post('/receta/' + idPrueba + '/borrar', null);
+    const edicionPostAjena = await mario.post('/receta/' + idPrueba, formulario('Editada por un desconocido'));
+    comprobar('tampoco se pueden enviar ediciones o borrados ajenos',
+        borradoAjeno.status === 302 && edicionPostAjena.status === 302);
+
+    const intacta = await anonimo.get('/receta/' + idPrueba, { headers: { Accept: 'application/json' } });
+    comprobar('la receta ajena sigue intacta', JSON.parse(intacta.texto).titulo === 'Receta de prueba');
+
+    //La semilla de ejemplo asigna sus recetas a mario
+    const semilla = await mario.get('/receta/' + id + '/editar');
+    comprobar('el autor de la receta de ejemplo puede editarla', semilla.status === 200);
+
+    const detalleAjeno = await anonimo.get('/receta/' + id);
+    comprobar('el detalle indica quien es el autor', detalleAjeno.texto.includes('Por mario'));
 
     const etiquetasGuardadas = await gestorDB.obtenerEtiquetas();
     comprobar('las etiquetas nuevas pasan al listado general (filtro y autocompletado)',
