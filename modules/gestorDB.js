@@ -1,4 +1,4 @@
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 
 /**
  * Capa de acceso a datos sobre MongoDB (driver oficial v7, solo promesas).
@@ -143,6 +143,22 @@ module.exports = {
     insertarUsuario: async function (usuario) {
         const resultado = await coleccion('usuarios').insertOne(usuario);
         return resultado.insertedId;
+    },
+
+    /**
+     * Devuelve una receta por su id, o null si el id no es valido o no
+     * existe.
+     */
+    obtenerRecetaPorId: async function (id) {
+        let oid;
+        try {
+            oid = new ObjectId(id);
+        } catch (err) {
+            return null;
+        }
+
+        const recetas = await coleccion('recetas').find({ _id: oid }).limit(1).toArray();
+        return recetas[0] || null;
     },
 
     /**

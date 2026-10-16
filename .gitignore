@@ -59,5 +59,9 @@ typings/
 # dotenv environment variables file
 .env
 
+# Fotos subidas por los usuarios
+public/fotos/*
+!public/fotos/.gitkeep
+
 # next.js build output
 .next

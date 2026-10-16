@@ -2,7 +2,8 @@
 Aplicacion para tener un libro de recetas online
 
 Puedes ver y filtrar las recetas, consultar la receta del dia, generar un menu
-aleatorio y añadir tus propias recetas con etiquetas (una vez registrado).
+aleatorio y añadir tus propias recetas con ingredientes, preparación, foto y
+video (una vez registrado).
 
 ## Stack tecnologico
 
@@ -13,6 +14,7 @@ aleatorio y añadir tus propias recetas con etiquetas (una vez registrado).
 | MongoDB (driver oficial) | 7.7 |
 | Nunjucks (motor de plantillas) | 3.2 |
 | express-session | 1.19 |
+| multer (subida de fotos) | 2.4 |
 | Bootstrap (frontend) | 5.3.8 (CDN) |
 | nodemon (solo desarrollo) | 3.1 |
 
@@ -43,17 +45,30 @@ se ha migrado:
 - **Receta del dia** (portada):  se elige a partir de la fecha, asi que no
   cambia durante el dia y no hace falta guardar estado.
 - **Menu aleatorio** (`/menu`):  solo comidas, solo cenas, ambos o postres.
+- **Recetas completas**:  ademas del titulo, el tiempo, la dificultad y el
+  momento del dia, cada receta tiene sus ingredientes, los pasos de la
+  preparacion (numerados), una foto y un video.
+- **Videos**:  los de YouTube y Vimeo se incrustan en la pagina de la receta;
+  cualquier otro enlace se muestra simplemente como enlace.
+- **Fotos**:  se guardan en `public/fotos` con nombre aleatorio, limitadas a
+  imagenes JPEG, PNG, WEBP o GIF de hasta 5 MB. La foto se borra del disco
+  cuando se quita de la receta o cuando se borra la receta.
 - **Etiquetas**:  cada receta lleva las suyas y, al guardarlas, se añaden al
   listado general del que salen el filtro y el autocompletado del formulario.
-- **Cuentas**:  registro e inicio de sesion. Guardar recetas exige identificarse.
+- **Cuentas**:  registro e inicio de sesion. Guardar, editar y borrar recetas
+  exige identificarse.
 
 ### Modelo de datos
 
 ```
-recetas    { titulo, tiempo, dificultad, momento, ingredientes[], etiquetas[], creadaEn }
+recetas    { titulo, tiempo, dificultad, momento, ingredientes[], preparacion[],
+             etiquetas[], video, foto, creadaEn, actualizadaEn }
 usuarios   { username, password, creadaEn }        // password: scrypt con sal
 etiquetas  { nombre, creadaEn }                    // indice unico sobre nombre
 ```
+
+Los ingredientes y la preparacion se escriben en un textarea, uno por linea;
+las etiquetas van separadas por comas.
 
 ## Puesta en marcha
 
@@ -78,7 +93,8 @@ etiquetas  { nombre, creadaEn }                    // indice unico sobre nombre
    npm run seed
    ```
 
-   Crea 20 recetas, sus etiquetas y el usuario `mario` / `recetario123`.
+   Crea 20 recetas con sus ingredientes, preparación y etiquetas, y el
+   usuario `mario` / `recetario123`.
 
 4. **Arrancar**:
 
@@ -96,8 +112,8 @@ etiquetas  { nombre, creadaEn }                    // indice unico sobre nombre
    ```
 
    Recorre todas las rutas y comprueba filtros, paginacion, sesiones, menu,
-   alta de recetas y escape de HTML. Los datos que crea la prueba se borran
-   al terminar.
+   alta, edicion y borrado de recetas, subida de fotos, incrustacion de videos
+   y escape de HTML. Los datos que crea la prueba se borran al terminar.
 
 ## Rutas
 
@@ -107,6 +123,9 @@ etiquetas  { nombre, creadaEn }                    // indice unico sobre nombre
 | `GET /recetas` | Listado paginado con filtros (`titulo`, `tiempo`, `dificultad`, `etiqueta`, `ingrediente`, `pg`) |
 | `GET /receta/:id` | Detalle. Devuelve JSON si se pide con `Accept: application/json` |
 | `GET/POST /receta` | Formulario y alta de recetas (requiere sesion) |
+| `GET /receta/:id/editar` | Formulario de edicion, relleno (requiere sesion) |
+| `POST /receta/:id` | Guarda los cambios (requiere sesion) |
+| `POST /receta/:id/borrar` | Borra la receta y su foto (requiere sesion) |
 | `GET/POST /menu` | Menu aleatorio (`momento`, `numero`) |
 | `GET/POST /login` | Identificacion |
 | `GET/POST /signup` | Registro |
@@ -124,6 +143,8 @@ modules/
   filtros.js            Criterios de busqueda del listado y del menu
   receta.js             Lectura y validacion del formulario
   recetaDelDia.js       Eleccion determinista de la receta del dia
+  video.js              Incrustacion de videos de YouTube y Vimeo
+  fotos.js              Subida y borrado de fotos
 routes/
   recetas.js            Listado, filtros, detalle y alta
   menu.js               Menu aleatorio
@@ -133,6 +154,7 @@ scripts/
   smoke-test.js         Pruebas de rutas
 views/                  Plantillas Nunjucks
 public/                 Estaticos (imagenes)
+  fotos/                Fotos subidas (en .gitignore)
 ```
 
 `views/recetasPg.html` dejo de existir:  el listado siempre esta paginado y
@@ -140,10 +162,12 @@ los filtros van en la misma plantilla.
 
 ## Pendiente
 
-- Editar y borrar recetas (`PUT /receta` sigue sin implementarse).
-- Subir fotos de las recetas.
-- Los ingredientes y las etiquetas se escriben separados por comas, asi que un
-  valor que contenga comas no se puede guardar tal cual.
+- Cualquier usuario identificado puede editar o borrar cualquier receta: todavia
+  no hay autoría ni permisos por receta.
+- Una receta por foto. Con varias fotos habria que pensar como organizarlas.
+- Las etiquetas se escriben separadas por comas, asi que una etiqueta que
+  contenga comas no se puede guardar tal cual (los ingredientes y los pasos no
+  tienen ese problema: van uno por linea).
 - `npm audit` avisa de un fallo de denegacion de servicio en `braces`
   (dependencia de `chokidar`, usada por nodemon y por la recarga de
   plantillas de Nunjucks). No tiene correccion publicada y solo afecta a

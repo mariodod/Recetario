@@ -3,8 +3,17 @@
  *
  *   npm test
  */
+const fs = require('node:fs');
+const path = require('node:path');
 const BASE = 'http://localhost:8081';
 const gestorDB = require('../modules/gestorDB.js');
+const { CARPETA, borrarFoto } = require('../modules/fotos.js');
+
+//PNG de 1x1 valido, para las pruebas de subida de fotos
+const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64'
+);
 
 let fallos = 0;
 let comprobaciones = 0;
@@ -26,7 +35,9 @@ function crearNavegador() {
         if (cookie) headers.Cookie = cookie;
 
         let body;
-        if (opciones.body) {
+        if (opciones.formData) {
+            body = opciones.formData;
+        } else if (opciones.body) {
             headers['Content-Type'] = 'application/x-www-form-urlencoded';
             body = new URLSearchParams(opciones.body).toString();
         }
@@ -48,7 +59,22 @@ function crearNavegador() {
         get: function (ruta, opciones) { return peticion(ruta, opciones); },
         post: function (ruta, body, opciones) {
             return peticion(ruta, Object.assign({ method: 'POST', body: body }, opciones));
+        },
+        subir: function (ruta, formData, opciones) {
+            return peticion(ruta, Object.assign({ method: 'POST', formData: formData }, opciones));
         }
+    };
+}
+
+function formulario(titulo) {
+    return {
+        titulo: titulo,
+        tiempo: '25',
+        dificultad: 'facil',
+        momento: 'cena',
+        ingredientes: 'Huevo\nSal\nPimienta',
+        preparacion: 'Bate los huevos.\nCuaja a fuego suave durante cinco minutos.',
+        etiquetas: 'vegetariano'
     };
 }
 
@@ -112,7 +138,7 @@ async function main() {
         sinResultados.texto.includes('Ninguna receta cumple'));
 
     // ------------------------------------------------------------------
-    // Detalle de receta (HTML y JSON)
+    // Detalle de receta (HTML, JSON, pasos y video)
     // ------------------------------------------------------------------
     gestorDB.init(process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario');
     await gestorDB.connect();
@@ -122,11 +148,13 @@ async function main() {
     const detalle = await anonimo.get('/receta/' + id);
     comprobar('el detalle de receta se renderiza como pagina',
         detalle.status === 200 && detalle.texto.includes('<h1>'));
+    comprobar('el detalle numera los pasos de la preparacion',
+        detalle.texto.includes('list-group-numbered') && detalle.texto.includes('Sofrie la carne picada'));
 
     const comoJson = await anonimo.get('/receta/' + id, { headers: { Accept: 'application/json' } });
     const recetaJson = JSON.parse(comoJson.texto);
     comprobar('el detalle se puede pedir como JSON',
-        comoJson.status === 200 && recetaJson._id === id && typeof recetaJson.titulo === 'string');
+        comoJson.status === 200 && recetaJson._id === id && Array.isArray(recetaJson.preparacion));
 
     // ------------------------------------------------------------------
     // Menu aleatorio
@@ -147,11 +175,14 @@ async function main() {
     // Sesiones: alta, acceso protegido, login y logout
     // ------------------------------------------------------------------
     const sinSesion = crearNavegador();
-    const formulario = await sinSesion.get('/receta');
-    comprobar('el formulario de receta pide identificarse', formulario.status === 302);
+    const formularioAlta = await sinSesion.get('/receta');
+    comprobar('el formulario de receta pide identificarse', formularioAlta.status === 302);
 
-    const guardadoSinSesion = await sinSesion.post('/receta', { titulo: 'No deberia guardarse' });
+    const guardadoSinSesion = await sinSesion.post('/receta', formulario('No deberia guardarse'));
     comprobar('no se puede guardar receta sin identificarse', guardadoSinSesion.status === 302);
+
+    const edicionSinSesion = await sinSesion.get('/receta/' + id + '/editar');
+    comprobar('no se puede editar receta sin identificarse', edicionSinSesion.status === 302);
 
     const usuario = 'prueba-' + Date.now();
     const password = 'clave-de-prueba-1';
@@ -190,7 +221,10 @@ async function main() {
 
     const logout = await login.get('/logout');
     const trasLogout = await login.get('/');
-    comprobar('el logout cierra la sesion', logout.status === 302 && trasLogout.texto.includes('Identifícate'));
+    comprobar('el logout cierra la sesion',
+        logout.status === 302 && trasLogout.texto.includes('Identifícate'));
+    comprobar('sin sesion no aparecen los botones de editar',
+        !trasLogout.texto.includes('/editar'));
 
     // ------------------------------------------------------------------
     // Alta de receta (con la sesion del registro)
@@ -198,29 +232,50 @@ async function main() {
     const etiquetaNueva = 'etiqueta-de-prueba-' + Date.now();
     const formularioReceta = await registro.get('/receta');
     comprobar('el formulario de receta se abre identificado', formularioReceta.status === 200);
-    comprobar('el formulario de receta trae el autocompletado de etiquetas e ingredientes',
-        formularioReceta.texto.includes('id="lista-etiquetas"') && formularioReceta.texto.includes('id="lista-ingredientes"'));
+    comprobar('el formulario de receta trae el autocompletado de etiquetas',
+        formularioReceta.texto.includes('id="lista-etiquetas"'));
+    comprobar('el formulario pide la preparacion y la foto',
+        formularioReceta.texto.includes('name="preparacion"') && formularioReceta.texto.includes('name="foto"'));
 
     const recetaIncompleta = await registro.post('/receta', { titulo: '   ' });
-    comprobar('una receta sin titulo se rechaza', recetaIncompleta.status === 400);
+    comprobar('una receta incompleta se rechaza con todos los errores', recetaIncompleta.status === 400
+        && recetaIncompleta.texto.includes('El titulo es obligatorio')
+        && recetaIncompleta.texto.includes('Cuenta como se prepara'));
 
-    const creada = await registro.post('/receta', {
-        titulo: 'Receta de prueba',
-        tiempo: '25',
-        dificultad: 'facil',
-        momento: 'cena',
-        ingredientes: 'Huevo, Sal, Pimienta',
-        etiquetas: etiquetaNueva + ', Receta de prueba'
-    });
+    const sinPreparacion = await registro.post('/receta',
+        Object.assign(formulario('Receta sin preparacion'), { preparacion: '' }));
+    comprobar('una receta sin preparacion se rechaza',
+        sinPreparacion.status === 400 && sinPreparacion.texto.includes('Cuenta como se prepara'));
+
+    const videoMalo = await registro.post('/receta',
+        Object.assign(formulario('Receta sin titulo'), { video: 'javascript:alert(1)' }));
+    comprobar('un enlace de video que no es http se rechaza', videoMalo.status === 400);
+
+    const creada = await registro.post('/receta', Object.assign(formulario('Receta de prueba'), {
+        etiquetas: etiquetaNueva + ', Receta de prueba',
+        video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    }));
     const destino = creada.cabeceras.get('location') || '';
     comprobar('una receta valida se guarda y redirige a su detalle',
         creada.status === 302 && destino.startsWith('/receta/'));
 
-    const guardada = await anonimo.get(destino.split('?')[0], { headers: { Accept: 'application/json' } });
+    const idPrueba = destino.split('?')[0].split('/').pop();
+    const guardada = await anonimo.get('/receta/' + idPrueba, { headers: { Accept: 'application/json' } });
     const recetaGuardada = JSON.parse(guardada.texto);
-    comprobar('los ingredientes y etiquetas se guardan como arrays en minusculas',
-        Array.isArray(recetaGuardada.ingredientes) && recetaGuardada.ingredientes.includes('huevo')
+    comprobar('los ingredientes y los pasos se guardan como arrays',
+        recetaGuardada.ingredientes.join('|') === 'huevo|sal|pimienta'
+        && recetaGuardada.preparacion.length === 2
         && recetaGuardada.etiquetas.includes(etiquetaNueva));
+
+    const conVideo = await anonimo.get('/receta/' + idPrueba);
+    comprobar('el video de YouTube se incrusta en el detalle',
+        conVideo.texto.includes('youtube-nocookie.com/embed/dQw4w9WgXcQ'));
+    const formEdicion = await registro.get('/receta/' + idPrueba + '/editar');
+    comprobar('el formulario de edicion viene relleno con la receta', formEdicion.status === 200
+        && formEdicion.texto.includes('value="Receta de prueba"')
+        && formEdicion.texto.includes('Bate los huevos.\nCuaja a fuego suave')
+        && formEdicion.texto.includes('huevo\nsal\npimienta')
+        && formEdicion.texto.includes('https://www.youtube.com/watch?v=dQw4w9WgXcQ'));
 
     const etiquetasGuardadas = await gestorDB.obtenerEtiquetas();
     comprobar('las etiquetas nuevas pasan al listado general (filtro y autocompletado)',
@@ -230,9 +285,65 @@ async function main() {
     comprobar('la receta aparece al filtrar por su etiqueta nueva',
         filtroNuevo.texto.includes('Receta de prueba'));
 
-    const conEtiqueta = await anonimo.get('/receta/' + id);
-    comprobar('en el detalle cada etiqueta enlaza a su filtro',
-        conEtiqueta.texto.includes('/recetas?etiqueta='));
+    // ------------------------------------------------------------------
+    // Edicion y borrado
+    // ------------------------------------------------------------------
+    const editado = await registro.post('/receta/' + idPrueba, Object.assign(formulario('Receta de prueba (editada)'), {
+        preparacion: 'Unico paso: se sirve.',
+        video: 'https://vimeo.com/76979871'
+    }));
+    comprobar('una receta se puede actualizar', editado.status === 302);
+
+    const trasEdicion = await anonimo.get('/receta/' + idPrueba, { headers: { Accept: 'application/json' } });
+    const recetaEditada = JSON.parse(trasEdicion.texto);
+    comprobar('los cambios se guardan en la base de datos',
+        recetaEditada.titulo === 'Receta de prueba (editada)'
+        && recetaEditada.preparacion.join('|') === 'Unico paso: se sirve.');
+
+    const conVimeo = await anonimo.get('/receta/' + idPrueba);
+    comprobar('el video de Vimeo se incrusta en el detalle',
+        conVimeo.texto.includes('player.vimeo.com/video/76979871'));
+
+    // ------------------------------------------------------------------
+    // Fotos
+    // ------------------------------------------------------------------
+    const subida = new FormData();
+    subida.append('titulo', 'Receta con foto');
+    subida.append('tiempo', '15');
+    subida.append('dificultad', 'facil');
+    subida.append('momento', 'cena');
+    subida.append('ingredientes', 'Huevo');
+    subida.append('preparacion', 'Se hace en un minuto.');
+    subida.append('foto', new Blob([PNG], { type: 'image/png' }), 'foto.png');
+
+    const conFoto = await registro.subir('/receta', subida);
+    const destinoFoto = conFoto.cabeceras.get('location') || '';
+    comprobar('una receta con foto se guarda', conFoto.status === 302 && destinoFoto.startsWith('/receta/'));
+
+    const idConFoto = destinoFoto.split('?')[0].split('/').pop();
+    const detalleConFoto = await anonimo.get('/receta/' + idConFoto);
+    const nombreFoto = (detalleConFoto.texto.match(/\/fotos\/([a-f0-9]+\.png)/) || [])[1];
+    comprobar('la foto se guarda en disco y se muestra en el detalle',
+        Boolean(nombreFoto) && fs.existsSync(path.join(CARPETA, nombreFoto)));
+
+    const listadoConFoto = await anonimo.get('/recetas?titulo=Receta+con+foto');
+    comprobar('la miniatura de la foto sale en el listado',
+        listadoConFoto.texto.includes('/fotos/' + nombreFoto));
+
+    const subidaMala = new FormData();
+    subidaMala.append('titulo', 'Receta con archivo raro');
+    subidaMala.append('preparacion', 'No importa.');
+    subidaMala.append('foto', new Blob([Buffer.from('no soy una imagen')], { type: 'text/plain' }), 'nota.txt');
+    const archivoMalo = await registro.subir('/receta', subidaMala);
+    comprobar('solo se aceptan imagenes', archivoMalo.status === 400
+        && archivoMalo.texto.includes('JPEG, PNG, WEBP o GIF'));
+
+    const borrada = await registro.post('/receta/' + idConFoto + '/borrar', null);
+    comprobar('una receta se puede borrar', borrada.status === 302);
+    comprobar('al borrar la receta desaparece su foto del disco',
+        !fs.existsSync(path.join(CARPETA, nombreFoto || 'no-existe')));
+    comprobar('la receta borrada ya no se puede ver',
+        (await anonimo.get('/receta/' + idConFoto)).status === 404);
 
     // ------------------------------------------------------------------
     // Renderizado
@@ -255,11 +366,15 @@ async function main() {
     // ------------------------------------------------------------------
     // Limpieza de los datos creados por esta prueba
     // ------------------------------------------------------------------
-    await gestorDB.eliminarReceta({ titulo: 'Receta de prueba' });
+    const dePrueba = await gestorDB.obtenerRecetas({ titulo: { $regex: '^Receta (de prueba|con foto|sin titulo|sin preparacion)' } });
+    for (const receta of dePrueba) {
+        await borrarFoto(receta.foto);
+    }
+    await gestorDB.eliminarReceta({ titulo: { $regex: '^Receta (de prueba|con foto|sin titulo|sin preparacion)' } });
     await gestorDB.eliminarReceta({ titulo: 'No deberia guardarse' });
-    await gestorDB.eliminarReceta({ titulo: 'Receta sin titulo' });
     await gestorDB.borrarEtiqueta(etiquetaNueva);
     await gestorDB.borrarEtiqueta('receta de prueba');
+    await gestorDB.borrarEtiqueta('receta de prueba (editada)');
     await gestorDB.borrarUsuario({ username: usuario });
     await gestorDB.close();
 

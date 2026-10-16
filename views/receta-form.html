@@ -1,15 +1,22 @@
 {% extends "base.html" %}
 
-{% block titulo %}Agregar receta{% endblock %}
+{% block titulo %}{% if modo == 'editar' %}Editar receta{% else %}Agregar receta{% endif %}{% endblock %}
 
 {% block contenido %}
-<h1>Agregar receta</h1>
+<h1>{% if modo == 'editar' %}Editar receta{% else %}Agregar receta{% endif %}</h1>
 
-{% if error %}
-<div class="alert alert-danger" role="alert">{{ error }}</div>
+{% if errores.length > 0 %}
+<div class="alert alert-danger" role="alert">
+    <ul class="mb-0">
+        {% for mensaje in errores %}
+        <li>{{ mensaje }}</li>
+        {% endfor %}
+    </ul>
+</div>
 {% endif %}
 
-<form method="POST" action="/receta">
+<form method="POST" action="{% if modo == 'editar' %}/receta/{{ receta._id }}{% else %}/receta{% endif %}"
+    enctype="multipart/form-data">
     <div class="mb-3">
         <label class="form-label" for="titulo">Título</label>
         <input class="form-control" type="text" id="titulo" name="titulo" value="{{ receta.titulo }}"
@@ -48,21 +55,49 @@
 
     <div class="mb-3">
         <label class="form-label" for="ingredientes">Ingredientes</label>
-        <input class="form-control" type="text" id="ingredientes" name="ingredientes"
-            list="lista-ingredientes" value="{{ receta.ingredientes | join(', ') }}"
-            placeholder="Sepáralos con comas: huevo, patata, cebolla" />
-        <datalist id="lista-ingredientes">
-            {% for ingrediente in ingredientes %}
-            <option value="{{ ingrediente }}"></option>
-            {% endfor %}
-        </datalist>
-        <div class="form-text">Escribelos separados por comas. Se completan con los que ya usan otras recetas.</div>
+        <textarea class="form-control" id="ingredientes" name="ingredientes" rows="5"
+            placeholder="Uno por linea: huevo, patata, cebolla">{{ receta.ingredientes }}</textarea>
+        <div class="form-text">Uno por línea, tal y como aparecerá en la receta.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="preparacion">Preparación</label>
+        <textarea class="form-control" id="preparacion" name="preparacion" rows="8" required
+            placeholder="Un paso por línea:&#10;Sofrie la cebolla durante cinco minutos.&#10;Añade el tomate y deja cocinar.">{{ receta.preparacion }}</textarea>
+        <div class="form-text">Cada línea se numera como un paso de la receta.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="video">Video de la receta (opcional)</label>
+        <input class="form-control" type="url" id="video" name="video" value="{{ receta.video }}"
+            placeholder="https://www.youtube.com/watch?v=..." />
+        <div class="form-text">
+            Se incrusta el de YouTube o Vimeo; cualquier otro enlace se muestra simplemente como enlace.
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="foto">Foto (opcional)</label>
+        {% if receta.foto %}
+        <div class="mb-2">
+            <img src="/fotos/{{ receta.foto }}" alt="Foto actual de la receta" height="120"
+                class="rounded border" />
+            <div class="form-text">
+                <label class="form-check-label">
+                    <input class="form-check-input" type="checkbox" name="quitarFoto" id="quitarFoto" />
+                    Quitar la foto actual
+                </label>
+            </div>
+        </div>
+        {% endif %}
+        <input class="form-control" type="file" id="foto" name="foto" accept="image/*" />
+        <div class="form-text">JPEG, PNG, WEBP o GIF de hasta 5 MB.</div>
     </div>
 
     <div class="mb-3">
         <label class="form-label" for="etiquetas">Etiquetas</label>
         <input class="form-control" type="text" id="etiquetas" name="etiquetas"
-            list="lista-etiquetas" value="{{ receta.etiquetas | join(', ') }}"
+            list="lista-etiquetas" value="{{ receta.etiquetas }}"
             placeholder="Sepáralas con comas: vegetariano, rapido" />
         <datalist id="lista-etiquetas">
             {% for etiqueta in etiquetas %}
@@ -74,7 +109,9 @@
         </div>
     </div>
 
-    <button class="btn btn-primary" type="submit">Guardar receta</button>
-    <a class="btn btn-outline-secondary" href="/recetas">Cancelar</a>
+    <button class="btn btn-primary" type="submit">
+        {% if modo == 'editar' %}Guardar cambios{% else %}Guardar receta{% endif %}
+    </button>
+    <a class="btn btn-outline-secondary" href="{% if modo == 'editar' %}/receta/{{ receta._id }}{% else %}/recetas{% endif %}">Cancelar</a>
 </form>
 {% endblock %}
