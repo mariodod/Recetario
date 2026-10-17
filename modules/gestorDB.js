@@ -378,6 +378,19 @@ module.exports = {
     },
 
     /**
+     * Solo los nombres de usuario, ordenados. Para el selector de ceder la
+     * autoría y para el filtro del listado: nunca se pasa la contrasena ni
+     * la sal a las plantillas.
+     */
+    obtenerNombresDeUsuario: async function () {
+        const usuarios = await coleccion('usuarios')
+            .find({}, { projection: { username: 1 } })
+            .sort({ username: 1 })
+            .toArray();
+        return usuarios.map(function (usuario) { return usuario.username; });
+    },
+
+    /**
      * Borra la etiqueta del listado general (no toca las recetas).
      */
     borrarEtiqueta: async function (nombre) {

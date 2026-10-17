@@ -225,6 +225,7 @@ async function main() {
     comprobar('no se puede editar receta sin identificarse', edicionSinSesion.status === 302);
 
     const usuario = 'prueba-' + Date.now();
+    const usuario2 = 'prueba2-' + Date.now();
     const password = 'clave-de-prueba-1';
 
     const registro = crearNavegador();
@@ -469,6 +470,82 @@ async function main() {
         conVimeo.texto.includes('player.vimeo.com/video/76979871'));
 
     // ------------------------------------------------------------------
+    // Autoria:  ceder la receta y filtrar por autor
+    // ------------------------------------------------------------------
+    const segunda = crearNavegador();
+    const segundaCuenta = await segunda.post('/signup', {
+        username: usuario2, password: password, confirmacion: password
+    });
+    comprobar('el segundo usuario se registra', segundaCuenta.status === 302);
+
+    const altaSinCesion = await registro.get('/receta');
+    comprobar('el formulario de alta no deja ceder la autoría',
+        !altaSinCesion.texto.includes('name="autor"'));
+
+    const edicionPropia = await registro.get('/receta/' + idPrueba + '/editar');
+    comprobar('el formulario de edicion lista a quien se le puede ceder',
+        edicionPropia.texto.includes('name="autor"')
+        && edicionPropia.texto.includes('value="' + usuario2 + '"')
+        && !edicionPropia.texto.includes('value="' + usuario + '"'));
+
+    const sigueSuya = JSON.parse((await registro.get('/receta/' + idPrueba, {
+        headers: { Accept: 'application/json' }
+    })).texto);
+    comprobar('editar sin decir nada no cambia el autor', sigueSuya.autor === usuario);
+
+    const cederAInexistente = await registro.post('/receta/' + idPrueba,
+        Object.assign(formulario('Receta de prueba (editada)'), { autor: 'nadie-tiene-esa-cuenta' }));
+    comprobar('no se puede ceder la receta a un usuario que no existe',
+        cederAInexistente.status === 400
+        && cederAInexistente.texto.includes('No hay ninguna cuenta con el usuario')
+        && cederAInexistente.texto.includes('nadie-tiene-esa-cuenta')
+        && cederAInexistente.texto.includes('name="autor"'));
+
+    const trasFallo = JSON.parse((await registro.get('/receta/' + idPrueba, {
+        headers: { Accept: 'application/json' }
+    })).texto);
+    comprobar('si la cesion falla la receta sigue siendo del autor', trasFallo.autor === usuario);
+
+    const cedida = await registro.post('/receta/' + idPrueba,
+        Object.assign(formulario('Receta de prueba (editada)'), { autor: usuario2 }));
+    const destinoCesion = cedida.cabeceras.get('location') || '';
+    comprobar('la receta se puede ceder a otro usuario',
+        cedida.status === 302 && destinoCesion.includes('Receta+cedida+a+')
+        && JSON.parse((await anonimo.get('/receta/' + idPrueba, {
+            headers: { Accept: 'application/json' }
+        })).texto).autor === usuario2);
+
+    const detalleCedido = await anonimo.get('/receta/' + idPrueba);
+    comprobar('el detalle pinta al nuevo autor y enlaza a sus recetas',
+        detalleCedido.texto.includes('Por ' + usuario2)
+        && detalleCedido.texto.includes('/recetas?autor=' + usuario2));
+
+    const edicionDelNuevo = await segunda.get('/receta/' + idPrueba + '/editar');
+    comprobar('el nuevo autor ya puede editarla',
+        edicionDelNuevo.status === 200 && edicionDelNuevo.texto.includes('siga siendo de ' + usuario2));
+
+    const edicionDelAntiguo = await registro.get('/receta/' + idPrueba + '/editar');
+    const borradoDelAntiguo = await registro.post('/receta/' + idPrueba + '/borrar', null);
+    comprobar('el autor anterior ya no puede editarla ni borrarla',
+        edicionDelAntiguo.status === 302 && borradoDelAntiguo.status === 302
+        && (await anonimo.get('/receta/' + idPrueba)).status === 200);
+
+    const listadoDelNuevo = await anonimo.get('/recetas?autor=' + usuario2);
+    comprobar('el listado se puede filtrar por autor',
+        listadoDelNuevo.texto.includes('Receta de prueba (editada)')
+        && listadoDelNuevo.texto.includes('value="' + usuario2 + '"')
+        && !listadoDelNuevo.texto.includes('Receta con cantidades'));
+
+    const listadoDelAntiguo = await anonimo.get('/recetas?autor=' + usuario);
+    comprobar('el filtro por autor deja fuera las recetas de los demas',
+        !listadoDelAntiguo.texto.includes('Receta de prueba (editada)')
+        && listadoDelAntiguo.texto.includes('Receta con cantidades'));
+
+    const listadoSinAutores = await anonimo.get('/recetas?autor=nadie');
+    comprobar('filtrar por un autor sin recetas sale vacio',
+        listadoSinAutores.texto.includes('Ninguna receta cumple los filtros actuales'));
+
+    // ------------------------------------------------------------------
     // Fotos
     // ------------------------------------------------------------------
     const subida = new FormData();
@@ -541,10 +618,13 @@ async function main() {
     await gestorDB.eliminarReceta({ titulo: 'No deberia guardarse' });
     await gestorDB.borrarFavoritosDe(usuario);
     await gestorDB.borrarValoracionesDe(usuario);
+    await gestorDB.borrarFavoritosDe(usuario2);
+    await gestorDB.borrarValoracionesDe(usuario2);
     await gestorDB.borrarEtiqueta(etiquetaNueva);
     await gestorDB.borrarEtiqueta('receta de prueba');
     await gestorDB.borrarEtiqueta('receta de prueba (editada)');
     await gestorDB.borrarUsuario({ username: usuario });
+    await gestorDB.borrarUsuario({ username: usuario2 });
     await gestorDB.close();
 
     console.log(`\n${comprobaciones} comprobaciones, ${fallos} fallos`);

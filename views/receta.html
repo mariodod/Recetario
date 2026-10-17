@@ -12,7 +12,8 @@
 
 <p class="mb-2">
     {% if receta.autor %}
-    <span class="badge bg-light text-dark border">Por {{ receta.autor }}</span>
+    <a class="badge bg-light text-dark text-decoration-none border"
+        href="/recetas?autor={{ receta.autor | urlencode }}">Por {{ receta.autor }}</a>
     {% endif %}
     {% if receta.tiempo %}
     <span class="badge bg-secondary">{{ receta.tiempo }} min</span>

@@ -12,7 +12,7 @@
     <!-- La busqueda de la barra se conserva al refinar los filtros -->
     <input type="hidden" name="q" value="{{ filtros.q }}" />
     {% endif %}
-    <div class="col-md-3">
+    <div class="col-md-2">
         <label class="form-label" for="titulo">Buscar por titulo</label>
         <input class="form-control" type="search" id="titulo" name="titulo" value="{{ filtros.titulo }}" />
     </div>
@@ -52,7 +52,17 @@
             {% endfor %}
         </datalist>
     </div>
-    <div class="col-md-1 d-grid">
+    <div class="col-md-2">
+        <label class="form-label" for="autor">Autor</label>
+        <input class="form-control" type="text" id="autor" name="autor" list="lista-autores"
+            value="{{ filtros.autor }}" />
+        <datalist id="lista-autores">
+            {% for autor in autores %}
+            <option value="{{ autor }}"></option>
+            {% endfor %}
+        </datalist>
+    </div>
+    <div class="col-md-2 d-grid">
         <button class="btn btn-primary" type="submit">Filtrar</button>
     </div>
     {% if hayFiltros %}

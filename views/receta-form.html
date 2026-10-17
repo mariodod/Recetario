@@ -114,6 +114,23 @@
         </div>
     </div>
 
+    {% if modo == 'editar' %}
+    <div class="mb-3">
+        <label class="form-label" for="autor">Ceder la receta a</label>
+        <select class="form-select" id="autor" name="autor">
+            <option value="">Nadie: que siga siendo de {{ receta.autor }}</option>
+            {% for usuario in autores %}
+            {% if usuario != receta.autor %}
+            <option value="{{ usuario }}">{{ usuario }}</option>
+            {% endif %}
+            {% endfor %}
+        </select>
+        <div class="form-text">
+            Quien la reciba pasara a poder editarla y borrarla; tu dejarias de poder tocarla.
+        </div>
+    </div>
+    {% endif %}
+
     <button class="btn btn-primary" type="submit">
         {% if modo == 'editar' %}Guardar cambios{% else %}Guardar receta{% endif %}
     </button>

@@ -60,13 +60,18 @@ module.exports = function (app, gestorDB) {
      * Pinta el formulario de recetas, tanto para crear como para editar.
      */
     async function pintarFormulario(res, opciones) {
-        const etiquetas = await gestorDB.obtenerEtiquetas();
+        //Solo en edicion hace falta la lista de usuarios:  para ceder la
+        //autoría a otro
+        const autores = opciones.modo === 'editar'
+            ? await gestorDB.obtenerNombresDeUsuario()
+            : [];
 
         res.status(opciones.estado || 200).render('receta-form.html', {
             receta: opciones.receta,
             errores: opciones.errores || [],
             modo: opciones.modo || 'crear',
-            etiquetas: etiquetas,
+            etiquetas: await gestorDB.obtenerEtiquetas(),
+            autores: autores,
             dificultades: DIFICULTADES,
             momentos: MOMENTOS
         });
@@ -88,10 +93,11 @@ module.exports = function (app, gestorDB) {
         //Con busqueda textual se ordena por relevancia y sin ella, por titulo
         const orden = filtros.q ? { score: { $meta: 'textScore' } } : { titulo: 1 };
 
-        const [datos, etiquetas, ingredientes] = await Promise.all([
+        const [datos, etiquetas, ingredientes, autores] = await Promise.all([
             gestorDB.obtenerRecetasPg(criterio, pg, orden),
             gestorDB.obtenerEtiquetas(),
-            gestorDB.obtenerIngredientes()
+            gestorDB.obtenerIngredientes(),
+            gestorDB.obtenerNombresDeUsuario()
         ]);
 
         const pgUltima = Math.max(Math.ceil(datos.total / 10), 1);
@@ -112,6 +118,7 @@ module.exports = function (app, gestorDB) {
             dificultades: DIFICULTADES,
             etiquetas: etiquetas,
             ingredientes: ingredientes,
+            autores: autores,
             hayFiltros: Object.values(filtros).some(function (valor) { return valor !== null && valor !== ''; })
         });
     });
@@ -254,7 +261,34 @@ module.exports = function (app, gestorDB) {
             });
         }
 
-        const receta = Object.assign({}, resultado.receta, { actualizadaEn: new Date() });
+        //Solo quien tiene la receta puede cederla, y solo a alguien con
+        //cuenta: si el usuario no existe no se guarda nada
+        const receta = Object.assign({}, resultado.receta, {
+            autor: existente.autor,
+            actualizadaEn: new Date()
+        });
+        let mensaje = 'Receta+actualizada';
+
+        const cederA = String(req.body.autor || '').trim();
+        if (cederA && cederA !== existente.autor) {
+            const cuentas = await gestorDB.obtenerUsuarios({ username: cederA });
+            if (cuentas.length === 0) {
+                if (req.file) {
+                    await borrarFoto(req.file.filename);
+                    receta.foto = existente.foto;
+                }
+                return pintarFormulario(res, {
+                    receta: paraElFormulario(receta),
+                    errores: ['No hay ninguna cuenta con el usuario "' + cederA + '"'],
+                    modo: 'editar',
+                    estado: 400
+                });
+            }
+
+            receta.autor = cederA;
+            mensaje = 'Receta+cedida+a+' + encodeURIComponent(cederA);
+        }
+
         await gestorDB.actualizarReceta({ _id: existente._id }, receta);
 
         //La foto que se deja de usar ya no hace falta
@@ -266,7 +300,7 @@ module.exports = function (app, gestorDB) {
             await gestorDB.insertarEtiqueta(etiqueta);
         }
 
-        res.redirect('/receta/' + existente._id + '?mensaje=Receta+actualizada&tipoMensaje=alert-success');
+        res.redirect('/receta/' + existente._id + '?mensaje=' + mensaje + '&tipoMensaje=alert-success');
     });
 
     app.post('/receta/:id/borrar', requiereSesion, async function (req, res) {

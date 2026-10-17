@@ -21,7 +21,8 @@ function extraerFiltros(query = {}) {
         tiempo: parseInt(query.tiempo, 10),
         dificultad: DIFICULTADES.includes(query.dificultad) ? query.dificultad : '',
         etiqueta: String(query.etiqueta || '').trim().toLowerCase(),
-        ingrediente: String(query.ingrediente || '').trim()
+        ingrediente: String(query.ingrediente || '').trim(),
+        autor: String(query.autor || '').trim()
     };
 
     if (!Number.isFinite(filtros.tiempo) || filtros.tiempo < 1) {
@@ -60,6 +61,10 @@ function criterioDeFiltros(filtros) {
     if (filtros.ingrediente) {
         criterio.ingredientes = { $regex: escaparRegExp(filtros.ingrediente), $options: 'i' };
     }
+    if (filtros.autor) {
+        //Comparacion exacta:  el usuario es el que se guardo al registrarse
+        criterio.autor = filtros.autor;
+    }
 
     return criterio;
 }
@@ -81,6 +86,7 @@ function consultaDeFiltros(filtros) {
     if (filtros.dificultad) params.set('dificultad', filtros.dificultad);
     if (filtros.etiqueta) params.set('etiqueta', filtros.etiqueta);
     if (filtros.ingrediente) params.set('ingrediente', filtros.ingrediente);
+    if (filtros.autor) params.set('autor', filtros.autor);
 
     const cadena = params.toString();
     return cadena ? cadena + '&' : '';
