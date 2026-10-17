@@ -70,8 +70,10 @@ se ha migrado:
   5 MB. El detalle las enseña en galeria (y en miniatura en el listado), el
   formulario deja subir varias de una vez y marcar cuales se quitan al guardar;
   las que se dejan de usar se borran del disco, igual que al borrar la receta.
-- **Etiquetas**:  cada receta lleva las suyas y, al guardarlas, se añaden al
-  listado general del que salen el filtro y el autocompletado del formulario.
+- **Etiquetas**:  van una por linea en el formulario, en minusculas y sin
+  repetidas. Como el separador ya no es la coma, una etiqueta puede llevar
+  comas ("pollo, con piel"); al guardarlas entran en el listado general del
+  que sale el filtro del listado.
 - **Cuentas**:  registro e inicio de sesion. Guardar recetas exige
   identificarse y cada receta recuerda quien la creo:  solo su autor puede
   editarla o borrarla, y el detalle siempre dice de quien es.
@@ -93,8 +95,9 @@ favoritos     { usuario, receta, creadaEn }        // indice unico usuario+recet
 valoraciones  { usuario, receta, estrellas, valoradaEn }   // indice unico usuario+receta
 ```
 
-Los ingredientes y la preparacion se escriben en un textarea, uno por linea;
-las etiquetas van separadas por comas. Los ingredientes son texto libre, asi
+Los ingredientes, la preparacion y las etiquetas se escriben en un textarea,
+uno por linea:  por eso una etiqueta puede llevar comas sin confundirse con
+ningun separador. Los ingredientes son texto libre, asi
 que tambien sirven para buscar y filtrar; si traen una cantidad delante
 ("200 g de harina") se lee para escalarlos con las raciones o sumarlos en la
 lista de la compra, y si no la traen se quedan tal cual.
@@ -151,9 +154,9 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 
    Recorre todas las rutas y comprueba filtros, busqueda textual, paginacion,
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
-   permisos de autor, cesion de autoría y filtro por autor, subida y quitado de
-   fotos, incrustacion de videos, escape de HTML, raciones, lista de la compra,
-   favoritos y valoraciones.
+   permisos de autor, cesion de autoría y filtro por autor, etiquetas con
+   comas, subida y quitado de fotos, incrustacion de videos, escape de HTML,
+   raciones, lista de la compra, favoritos y valoraciones.
    Los datos que crea la prueba se borran al terminar.
 
 ## Rutas
@@ -214,9 +217,6 @@ los filtros van en la misma plantilla.
 - Las recetas sin autor no las puede editar nadie desde la aplicacion (solo
   ocurre a mano en la base de datos); `npm run seed` se las asigna al usuario
   de ejemplo.
-- Las etiquetas se escriben separadas por comas, asi que una etiqueta que
-  contenga comas no se puede guardar tal cual (los ingredientes y los pasos no
-  tienen ese problema: van uno por linea).
 - El escalado por raciones y la suma de la lista de la compra son un intento
   de leer la cantidad de delante de cada ingrediente; un ingrediente raro
   ("al gusto", "un puñado") se queda tal cual y no se suma.
