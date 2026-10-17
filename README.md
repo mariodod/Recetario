@@ -73,6 +73,11 @@ se ha migrado:
 - **Cuentas**:  registro e inicio de sesion. Guardar recetas exige
   identificarse y cada receta recuerda quien la creo:  solo su autor puede
   editarla o borrarla, y el detalle siempre dice de quien es.
+- **Autoria**:  el autor puede cederle la receta a otro usuario desde el
+  formulario de edicion, a partir de lo cual el nuevo autor pasa a poder
+  editarla y borrarla y el anterior deja de poder tocarla. El nombre del autor
+  del detalle enlaza a su recetas (`/recetas?autor=...`), que tambien se puede
+  escribir a mano en el filtro del listado.
 
 ### Modelo de datos
 
@@ -144,8 +149,9 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 
    Recorre todas las rutas y comprueba filtros, busqueda textual, paginacion,
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
-   permisos de autor, subida de fotos, incrustacion de videos, escape de HTML,
-   raciones, lista de la compra, favoritos y valoraciones.
+   permisos de autor, cesion de autoría y filtro por autor, subida de fotos,
+   incrustacion de videos, escape de HTML, raciones, lista de la compra,
+   favoritos y valoraciones.
    Los datos que crea la prueba se borran al terminar.
 
 ## Rutas
@@ -153,11 +159,11 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 | Ruta | Descripcion |
 | --- | --- |
 | `GET /` | Portada con la receta del dia |
-| `GET /recetas` | Listado paginado con filtros (`titulo`, `tiempo`, `dificultad`, `etiqueta`, `ingrediente`, `pg`) |
+| `GET /recetas` | Listado paginado con filtros (`titulo`, `tiempo`, `dificultad`, `etiqueta`, `ingrediente`, `autor`, `pg`) |
 | `GET /receta/:id` | Detalle. Devuelve JSON si se pide con `Accept: application/json` |
 | `GET/POST /receta` | Formulario y alta de recetas (requiere sesion) |
 | `GET /receta/:id/editar` | Formulario de edicion, relleno (requiere sesion) |
-| `POST /receta/:id` | Guarda los cambios (requiere sesion) |
+| `POST /receta/:id` | Guarda los cambios y, si se pide, cede la autoría (requiere ser el autor) |
 | `POST /receta/:id/borrar` | Borra la receta y su foto (requiere sesion) |
 | `GET /lista` | Lista de la compra (`recetas=id1,id2`) |
 | `POST /receta/:id/favorito` | Guarda o quita la receta de favoritos (requiere sesion) |
@@ -203,8 +209,8 @@ los filtros van en la misma plantilla.
 
 ## Pendiente
 
-- No hay forma de ceder la autoria de una receta a otro usuario. Las recetas
-  sin autor no las puede editar nadie; `npm run seed` se las asigna al usuario
+- Las recetas sin autor no las puede editar nadie desde la aplicacion (solo
+  ocurre a mano en la base de datos); `npm run seed` se las asigna al usuario
   de ejemplo.
 - Una receta por foto. Con varias fotos habria que pensar como organizarlas.
 - Las etiquetas se escriben separadas por comas, asi que una etiqueta que
