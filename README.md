@@ -2,7 +2,7 @@
 Aplicacion para tener un libro de recetas online
 
 Puedes ver y filtrar las recetas, consultar la receta del dia, generar un menu
-aleatorio y añadir tus propias recetas con ingredientes, preparación, foto y
+aleatorio y añadir tus propias recetas con ingredientes, preparación, fotos y
 video (una vez registrado).
 
 ## Stack tecnologico
@@ -52,7 +52,7 @@ se ha migrado:
   que comparten etiquetas o ingredientes, por numero de coincidencias.
 - **Recetas completas**:  ademas del titulo, el tiempo, la dificultad y el
   momento del dia, cada receta tiene sus ingredientes, los pasos de la
-  preparacion (numerados), una foto y un video.
+  preparacion (numerados), sus fotos y un video.
 - **Raciones**:  cada receta dice para cuantas personas es y el detalle deja
   subir o bajarlas con un boton (?raciones=6), escalando las cantidades de
   los ingredientes que la traigan escrita ("200 g de harina" pasa a "400 g").
@@ -65,9 +65,11 @@ se ha migrado:
   muestra la media y deja cambiar tu votacion.
 - **Videos**:  los de YouTube y Vimeo se incrustan en la pagina de la receta;
   cualquier otro enlace se muestra simplemente como enlace.
-- **Fotos**:  se guardan en `public/fotos` con nombre aleatorio, limitadas a
-  imagenes JPEG, PNG, WEBP o GIF de hasta 5 MB. La foto se borra del disco
-  cuando se quita de la receta o cuando se borra la receta.
+- **Fotos**:  cada receta admite hasta seis. Se guardan en `public/fotos` con
+  nombre aleatorio y solo se aceptan imagenes JPEG, PNG, WEBP o GIF de hasta
+  5 MB. El detalle las enseña en galeria (y en miniatura en el listado), el
+  formulario deja subir varias de una vez y marcar cuales se quitan al guardar;
+  las que se dejan de usar se borran del disco, igual que al borrar la receta.
 - **Etiquetas**:  cada receta lleva las suyas y, al guardarlas, se añaden al
   listado general del que salen el filtro y el autocompletado del formulario.
 - **Cuentas**:  registro e inicio de sesion. Guardar recetas exige
@@ -83,7 +85,7 @@ se ha migrado:
 
 ```
 recetas       { titulo, tiempo, raciones, dificultad, momento, ingredientes[],
-                preparacion[], etiquetas[], video, foto, autor, creadaEn,
+                preparacion[], etiquetas[], video, fotos[], autor, creadaEn,
                 actualizadaEn }
 usuarios      { username, password, creadaEn }     // password: scrypt con sal
 etiquetas     { nombre, creadaEn }                 // indice unico sobre nombre
@@ -149,8 +151,8 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 
    Recorre todas las rutas y comprueba filtros, busqueda textual, paginacion,
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
-   permisos de autor, cesion de autoría y filtro por autor, subida de fotos,
-   incrustacion de videos, escape de HTML, raciones, lista de la compra,
+   permisos de autor, cesion de autoría y filtro por autor, subida y quitado de
+   fotos, incrustacion de videos, escape de HTML, raciones, lista de la compra,
    favoritos y valoraciones.
    Los datos que crea la prueba se borran al terminar.
 
@@ -164,7 +166,7 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 | `GET/POST /receta` | Formulario y alta de recetas (requiere sesion) |
 | `GET /receta/:id/editar` | Formulario de edicion, relleno (requiere sesion) |
 | `POST /receta/:id` | Guarda los cambios y, si se pide, cede la autoría (requiere ser el autor) |
-| `POST /receta/:id/borrar` | Borra la receta y su foto (requiere sesion) |
+| `POST /receta/:id/borrar` | Borra la receta y sus fotos (requiere sesion) |
 | `GET /lista` | Lista de la compra (`recetas=id1,id2`) |
 | `POST /receta/:id/favorito` | Guarda o quita la receta de favoritos (requiere sesion) |
 | `POST /receta/:id/valoracion` | De 1 a 5 estrellas, una por usuario (requiere sesion) |
@@ -212,7 +214,6 @@ los filtros van en la misma plantilla.
 - Las recetas sin autor no las puede editar nadie desde la aplicacion (solo
   ocurre a mano en la base de datos); `npm run seed` se las asigna al usuario
   de ejemplo.
-- Una receta por foto. Con varias fotos habria que pensar como organizarlas.
 - Las etiquetas se escriben separadas por comas, asi que una etiqueta que
   contenga comas no se puede guardar tal cual (los ingredientes y los pasos no
   tienen ese problema: van uno por linea).
