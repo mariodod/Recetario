@@ -1,0 +1,60 @@
+<!-- https://mozilla.github.io/nunjucks/ -->
+{% extends "base.html" %}
+
+{% block titulo %}Mis recetas{% endblock %}
+
+{% block contenido %}
+<h1>Mis recetas</h1>
+
+<h2 class="h5">Creadas por mi ({{ creadas.length }})</h2>
+{% if creadas.length == 0 %}
+<div class="alert alert-info" role="alert">
+    Todavia no has creado ninguna receta.
+    <a href="/receta" class="alert-link">Anade la primera</a>.
+</div>
+{% else %}
+<ul class="list-group mb-4">
+    {% for receta in creadas %}
+    <li class="list-group-item d-flex align-items-center">
+        {% if receta.foto %}
+        <img src="/fotos/{{ receta.foto }}" alt="" height="48" class="rounded border me-2 flex-shrink-0" />
+        {% endif %}
+        <a href="/receta/{{ receta._id }}" class="me-1">{{ receta.titulo }}</a>
+        {% if receta.tiempo %}
+        <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
+        {% endif %}
+        {% if receta.raciones %}
+        <span class="badge bg-dark">{{ receta.raciones }} raciones</span>
+        {% endif %}
+        <a class="btn btn-sm btn-outline-primary ms-auto" href="/receta/{{ receta._id }}/editar">Editar</a>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<h2 class="h5">Guardadas ({{ guardadas.length }})</h2>
+{% if guardadas.length == 0 %}
+<div class="alert alert-info" role="alert">
+    No has guardado ninguna receta todavia:  pulsa en
+    <a href="/recetas" class="alert-link">cualquier receta</a> y la guardas con
+    la estrella.
+</div>
+{% else %}
+<ul class="list-group mb-4">
+    {% for receta in guardadas %}
+    <li class="list-group-item d-flex align-items-center">
+        {% if receta.foto %}
+        <img src="/fotos/{{ receta.foto }}" alt="" height="48" class="rounded border me-2 flex-shrink-0" />
+        {% endif %}
+        <a href="/receta/{{ receta._id }}" class="me-1">{{ receta.titulo }}</a>
+        {% if receta.tiempo %}
+        <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
+        {% endif %}
+        <form class="d-inline ms-auto" method="POST" action="/receta/{{ receta._id }}/favorito">
+            <button class="btn btn-sm btn-outline-warning" type="submit">&#9733; Quitar</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

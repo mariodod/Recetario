@@ -24,12 +24,17 @@
     </div>
 
     <div class="row">
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <label class="form-label" for="tiempo">Tiempo de preparación (minutos)</label>
             <input class="form-control" type="number" id="tiempo" name="tiempo" min="1"
                 value="{{ receta.tiempo }}" />
         </div>
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
+            <label class="form-label" for="raciones">Raciones</label>
+            <input class="form-control" type="number" id="raciones" name="raciones" min="1" max="50"
+                value="{{ receta.raciones }}" />
+        </div>
+        <div class="col-md-3 mb-3">
             <label class="form-label" for="dificultad">Dificultad</label>
             <select class="form-select" id="dificultad" name="dificultad" required>
                 <option value="">Elige una opción</option>
@@ -40,7 +45,7 @@
                 {% endfor %}
             </select>
         </div>
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <label class="form-label" for="momento">Momento del día</label>
             <select class="form-select" id="momento" name="momento" required>
                 <option value="">Elige una opción</option>

@@ -8,6 +8,7 @@ function recetaVacia() {
     return {
         titulo: '',
         tiempo: null,
+        raciones: null,
         dificultad: '',
         momento: '',
         ingredientes: [],
@@ -35,6 +36,7 @@ function parsearReceta(body = {}, opciones = {}) {
     const receta = recetaVacia();
     receta.titulo = String(body.titulo || '').trim();
     receta.tiempo = parseInt(body.tiempo, 10);
+    receta.raciones = parseInt(body.raciones, 10);
     receta.dificultad = DIFICULTADES.includes(body.dificultad) ? body.dificultad : '';
     receta.momento = MOMENTOS.includes(body.momento) ? body.momento : '';
     receta.ingredientes = enMinusculas(lineas(body.ingredientes));
@@ -50,6 +52,9 @@ function parsearReceta(body = {}, opciones = {}) {
     }
     if (!Number.isFinite(receta.tiempo) || receta.tiempo < 1) {
         receta.tiempo = null;
+    }
+    if (!Number.isFinite(receta.raciones) || receta.raciones < 1 || receta.raciones > 50) {
+        receta.raciones = null;
     }
     if (!receta.dificultad) {
         errores.push('Indica la dificultad');

@@ -37,6 +37,28 @@ function coleccion(nombre) {
 }
 
 /**
+ * Busca varias recetas por sus ids y las devuelve en el mismo orden en que
+ * se pidieron. Los ids que no sean ids o no existan se ignoran.
+ */
+async function buscarRecetasPorIds(ids) {
+    const oids = [];
+    for (const id of ids) {
+        try {
+            oids.push(new ObjectId(id));
+        } catch (err) {
+            //Id erroneo: se ignora
+        }
+    }
+    if (oids.length === 0) {
+        return [];
+    }
+
+    const encontradas = await coleccion('recetas').find({ _id: { $in: oids } }).toArray();
+    const porId = new Map(encontradas.map(function (receta) { return [String(receta._id), receta]; }));
+    return ids.map(function (id) { return porId.get(String(id)); }).filter(Boolean);
+}
+
+/**
  * Indices de la base de datos. Un indice unico evita usuarios o etiquetas
  * duplicadas aunque dos peticiones lleguen a la vez. Si ya existen indices
  * incompatibles se avisa pero no se bloquea el arranque.
@@ -48,6 +70,11 @@ async function crearIndices() {
         await db.collection('etiquetas').createIndex({ nombre: 1 }, { unique: true });
         await db.collection('recetas').createIndex({ momento: 1 });
         await db.collection('recetas').createIndex({ etiquetas: 1 });
+
+        //Un favorito y una valoracion por usuario y receta:  el indice unico
+        //evita duplicados aunque dos peticiones lleguen a la vez
+        await db.collection('favoritos').createIndex({ usuario: 1, receta: 1 }, { unique: true });
+        await db.collection('valoraciones').createIndex({ usuario: 1, receta: 1 }, { unique: true });
 
         //Busqueda textual sobre titulo, etiquetas, ingredientes y preparacion.
         //El peso decide cuanta mas relevancia tiene un acierto en cada campo y
@@ -180,6 +207,87 @@ module.exports = {
 
         const recetas = await coleccion('recetas').find({ _id: oid }).limit(1).toArray();
         return recetas[0] || null;
+    },
+
+    /**
+     * Varias recetas por sus ids, manteniendo el orden pedido.
+     */
+    obtenerRecetasPorIds: async function (ids) {
+        return buscarRecetasPorIds(ids);
+    },
+
+    /**
+     * Favoritos de un usuario. Devuelve sus recetas completas, de la mas
+     * recientemente guardada a la mas antigua.
+     */
+    obtenerFavoritos: async function (usuario) {
+        const favoritos = await coleccion('favoritos')
+            .find({ usuario: usuario }, { sort: { creadaEn: -1 } })
+            .toArray();
+        return buscarRecetasPorIds(favoritos.map(function (favorito) { return favorito.receta; }));
+    },
+
+    insertarFavorito: async function (usuario, receta) {
+        await coleccion('favoritos').updateOne(
+            { usuario: usuario, receta: receta },
+            { $setOnInsert: { usuario: usuario, receta: receta, creadaEn: new Date() } },
+            { upsert: true }
+        );
+    },
+
+    borrarFavorito: async function (usuario, receta) {
+        await coleccion('favoritos').deleteOne({ usuario: usuario, receta: receta });
+    },
+
+    esFavorito: async function (usuario, receta) {
+        if (!usuario) return false;
+        const favorito = await coleccion('favoritos').findOne({ usuario: usuario, receta: receta });
+        return Boolean(favorito);
+    },
+
+    borrarFavoritosDe: async function (usuario) {
+        const resultado = await coleccion('favoritos').deleteMany({ usuario: usuario });
+        return resultado.deletedCount;
+    },
+
+    borrarValoracionesDe: async function (usuario) {
+        const resultado = await coleccion('valoraciones').deleteMany({ usuario: usuario });
+        return resultado.deletedCount;
+    },
+
+    /**
+     * Guarda la valoracion de un usuario (una sola por receta: la ultima
+     * votacion manda).
+     */
+    guardarValoracion: async function (usuario, receta, estrellas) {
+        await coleccion('valoraciones').updateOne(
+            { usuario: usuario, receta: receta },
+            { $set: { usuario: usuario, receta: receta, estrellas: estrellas, valoradaEn: new Date() } },
+            { upsert: true }
+        );
+    },
+
+    /**
+     * Resumen de las valoraciones de una receta:  media, cuantas hay y
+     * cual es la del usuario actual (0 si aun no ha valorado).
+     */
+    obtenerValoracion: async function (receta, usuario) {
+        const [resumen, mia] = await Promise.all([
+            coleccion('valoraciones').aggregate([
+                { $match: { receta: receta } },
+                { $group: { _id: '$receta', media: { $avg: '$estrellas' }, total: { $sum: 1 } } }
+            ]).toArray(),
+            usuario
+                ? coleccion('valoraciones').findOne({ receta: receta, usuario: usuario })
+                : Promise.resolve(null)
+        ]);
+
+        return {
+            media: resumen[0] ? Math.round(resumen[0].media * 10) / 10 : 0,
+            entera: resumen[0] ? Math.round(resumen[0].media) : 0,
+            total: resumen[0] ? resumen[0].total : 0,
+            mia: mia ? mia.estrellas : 0
+        };
     },
 
     /**

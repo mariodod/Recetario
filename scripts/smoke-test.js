@@ -351,6 +351,96 @@ async function main() {
     const detalleAjeno = await anonimo.get('/receta/' + id);
     comprobar('el detalle indica quien es el autor', detalleAjeno.texto.includes('Por mario'));
 
+    // ------------------------------------------------------------------
+    // Raciones, lista de la compra, favoritos y valoraciones
+    // ------------------------------------------------------------------
+    const creadaCantidades = await registro.post('/receta',
+        Object.assign(formulario('Receta con cantidades'), {
+            raciones: '2',
+            ingredientes: '200 g de harina\n2 huevos\nsal'
+        }));
+    const idCantidades = (creadaCantidades.cabeceras.get('location') || '').split('?')[0].split('/').pop();
+
+    const talCual = await anonimo.get('/receta/' + idCantidades);
+    comprobar('la receta enseña sus raciones y sus cantidades originales',
+        talCual.texto.includes('2 raciones') && talCual.texto.includes('200 g de harina')
+        && talCual.texto.includes('?raciones=3'));
+
+    const doble = await anonimo.get('/receta/' + idCantidades + '?raciones=4');
+    comprobar('cambiar las raciones escala las cantidades',
+        doble.texto.includes('400 g de harina') && doble.texto.includes('4 huevos'));
+    comprobar('lo que no trae cantidad no se toca', doble.texto.includes('>sal</a>'));
+
+    const racionesLocas = await anonimo.get('/receta/' + idCantidades + '?raciones=999');
+    comprobar('un numero de raciones fuera de rango se ignora',
+        racionesLocas.texto.includes('200 g de harina'));
+
+    const creadaCantidadesExtra = await registro.post('/receta',
+        Object.assign(formulario('Receta con cantidades extra'), {
+            raciones: '2',
+            ingredientes: '300 g de harina\n2 huevos\nsal'
+        }));
+    const idCantidadesExtra = (creadaCantidadesExtra.cabeceras.get('location') || '').split('?')[0].split('/').pop();
+
+    const marcarEnListado = await anonimo.get('/recetas?titulo=Receta+con+cantidades');
+    comprobar('el listado deja marcar recetas para la lista de la compra',
+        marcarEnListado.texto.includes('action="/lista"') && marcarEnListado.texto.includes('name="recetas"'));
+
+    const compra = await anonimo.get('/lista?recetas=' + idCantidades + ',' + idCantidadesExtra);
+    comprobar('la lista de la compra suma lo que piden varias recetas',
+        compra.texto.includes('500 g de harina') && compra.texto.includes('4 huevos'));
+    comprobar('lo repetido va una sola vez', (compra.texto.match(/harina/g) || []).length === 1);
+    comprobar('la lista enseña las recetas elegidas y deja quitar una',
+        compra.texto.includes('Receta con cantidades extra')
+        && compra.texto.includes('Quitar')
+        && compra.texto.includes('?recetas=' + idCantidadesExtra));
+
+    const listaVacia = await anonimo.get('/lista');
+    comprobar('la lista vacia explica como se usa', listaVacia.texto.includes('No has elegido ninguna receta'));
+
+    const favoritoSinSesion = await anonimo.post('/receta/' + idCantidades + '/favorito', null);
+    comprobar('guardar en favoritos exige identificarse', favoritoSinSesion.status === 302);
+
+    await registro.post('/receta/' + idCantidades + '/favorito', null);
+    const vistaFavorita = await registro.get('/receta/' + idCantidades);
+    comprobar('el detalle cambia el boton de favorito al guardarlo',
+        vistaFavorita.texto.includes('Quitar de favoritos'));
+
+    const misRecetas = await registro.get('/mis-recetas');
+    comprobar('mis recetas separa las guardadas de las creadas',
+        misRecetas.status === 200
+        && misRecetas.texto.includes('Creadas por mi (')
+        && misRecetas.texto.includes('Guardadas (1)')
+        && misRecetas.texto.includes('Receta con cantidades extra'));
+
+    await registro.post('/receta/' + idCantidades + '/favorito', null);
+    const misRecetasSinFavorito = await registro.get('/mis-recetas');
+    comprobar('al quitarla deja de estar guardada', misRecetasSinFavorito.texto.includes('Guardadas (0)'));
+
+    const valoracionSinSesion = await anonimo.post('/receta/' + idCantidades + '/valoracion', { estrellas: '5' });
+    comprobar('valorar exige identificarse', valoracionSinSesion.status === 302);
+    comprobar('quien no esta identificado lo ve dicho en el detalle',
+        talCual.texto.includes('Identifícate para valorar'));
+
+    const votada = await registro.post('/receta/' + idCantidades + '/valoracion', { estrellas: '5' });
+    const vistaVotada = await registro.get('/receta/' + idCantidades);
+    comprobar('la valoracion sale en el detalle con la media y el total',
+        votada.status === 302 && vistaVotada.texto.includes('(1 valoraciones)')
+        && vistaVotada.texto.includes('id="valorar-5" checked'));
+
+    await registro.post('/receta/' + idCantidades + '/valoracion', { estrellas: '3' });
+    const reVotada = await registro.get('/receta/' + idCantidades);
+    comprobar('volver a valorar sustituye la anterior en vez de sumarla',
+        reVotada.texto.includes('(1 valoraciones)') && reVotada.texto.includes('id="valorar-3" checked'));
+
+    const valoracionMala = await registro.post('/receta/' + idCantidades + '/valoracion', { estrellas: '9' });
+    const trasValoracionMala = await registro.get('/receta/' + idCantidades);
+    comprobar('una valoracion fuera de rango no se guarda',
+        valoracionMala.status === 302 && trasValoracionMala.texto.includes('id="valorar-3" checked'));
+
+    const misRecetasSinSesion = await anonimo.get('/mis-recetas');
+    comprobar('mis recetas tambien exige identificarse', misRecetasSinSesion.status === 302);
+
     const etiquetasGuardadas = await gestorDB.obtenerEtiquetas();
     comprobar('las etiquetas nuevas pasan al listado general (filtro y autocompletado)',
         etiquetasGuardadas.some(function (etiqueta) { return etiqueta.nombre === etiquetaNueva; }));
@@ -440,12 +530,17 @@ async function main() {
     // ------------------------------------------------------------------
     // Limpieza de los datos creados por esta prueba
     // ------------------------------------------------------------------
-    const dePrueba = await gestorDB.obtenerRecetas({ titulo: { $regex: '^Receta (de prueba|con foto|sin titulo|sin preparacion)' } });
+    const titulosDePrueba = {
+        titulo: { $regex: '^Receta (de prueba|con foto|sin titulo|sin preparacion|con cantidades)' }
+    };
+    const dePrueba = await gestorDB.obtenerRecetas(titulosDePrueba);
     for (const receta of dePrueba) {
         await borrarFoto(receta.foto);
     }
-    await gestorDB.eliminarReceta({ titulo: { $regex: '^Receta (de prueba|con foto|sin titulo|sin preparacion)' } });
+    await gestorDB.eliminarReceta(titulosDePrueba);
     await gestorDB.eliminarReceta({ titulo: 'No deberia guardarse' });
+    await gestorDB.borrarFavoritosDe(usuario);
+    await gestorDB.borrarValoracionesDe(usuario);
     await gestorDB.borrarEtiqueta(etiquetaNueva);
     await gestorDB.borrarEtiqueta('receta de prueba');
     await gestorDB.borrarEtiqueta('receta de prueba (editada)');

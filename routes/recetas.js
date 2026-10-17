@@ -2,6 +2,7 @@ const requiereSesion = require('../modules/autenticacion.js');
 const { parsearReceta } = require('../modules/receta.js');
 const { subirFoto, borrarFoto } = require('../modules/fotos.js');
 const { embeberVideo } = require('../modules/video.js');
+const { escalar } = require('../modules/raciones.js');
 const {
     DIFICULTADES,
     MOMENTOS,
@@ -39,6 +40,18 @@ function sinPermisos(res, receta, accion) {
     return res.redirect(
         '/receta/' + receta._id + '?mensaje=' + encodeURIComponent(mensaje) + '&tipoMensaje=alert-danger'
     );
+}
+
+/**
+ * Raciones que hay que mostrar:  las que pida la url si son utilizables, las
+ * propias de la receta o ninguna.
+ */
+function racionesAMostrar(pedido, propias) {
+    const numero = parseInt(pedido, 10);
+    if (Number.isFinite(numero) && numero >= 1 && numero <= 50) {
+        return numero;
+    }
+    return propias && propias >= 1 && propias <= 50 ? propias : null;
 }
 
 module.exports = function (app, gestorDB) {
@@ -113,17 +126,33 @@ module.exports = function (app, gestorDB) {
             return noExiste(res);
         }
 
-        //Las sugerencias solo hacen falta en la pagina, no en el JSON
-        const relacionadas = req.accepts('html')
-            ? await gestorDB.obtenerRecetasRelacionadas(receta, 4)
-            : [];
+        //Todo esto solo hace falta en la pagina, no en el JSON
+        const esPagina = Boolean(req.accepts('html'));
+        const [relacionadas, valoracion, favorita] = await Promise.all([
+            esPagina ? gestorDB.obtenerRecetasRelacionadas(receta, 4) : Promise.resolve([]),
+            esPagina ? gestorDB.obtenerValoracion(receta._id, req.session.usuario) : Promise.resolve(null),
+            esPagina ? gestorDB.esFavorito(req.session.usuario, receta._id) : Promise.resolve(false)
+        ]);
+
+        //Raciones pedidas en la url (?raciones=6):  el factor escala las
+        //cantidades de los ingredientes que traigan cantidad
+        const raciones = racionesAMostrar(req.query.raciones, receta.raciones);
+        const factor = raciones && receta.raciones ? raciones / receta.raciones : 1;
+        const ingredientes = (receta.ingredientes || []).map(function (nombre) {
+            return { nombre: nombre, texto: escalar(nombre, factor) };
+        });
 
         res.format({
             html: function () {
                 res.render('receta.html', {
                     receta: receta,
                     video: embeberVideo(receta.video),
-                    relacionadas: relacionadas
+                    relacionadas: relacionadas,
+                    ingredientes: ingredientes,
+                    raciones: raciones,
+                    valoracion: valoracion,
+                    estrellas: [1, 2, 3, 4, 5],
+                    esFavorito: favorita
                 });
             },
             json: function () { res.json(receta); }
@@ -253,5 +282,58 @@ module.exports = function (app, gestorDB) {
         await borrarFoto(existente.foto);
 
         res.redirect('/recetas?mensaje=Receta+borrada&tipoMensaje=alert-success');
+    });
+
+    /**
+     * Mis recetas:  las guardadas como favoritas y las creadas por mi.
+     */
+    app.get('/mis-recetas', requiereSesion, async function (req, res) {
+        const usuario = req.session.usuario;
+
+        const [guardadas, creadas] = await Promise.all([
+            gestorDB.obtenerFavoritos(usuario),
+            gestorDB.obtenerRecetas({ autor: usuario }, { sort: { titulo: 1 } })
+        ]);
+
+        res.render('mis-recetas.html', { guardadas: guardadas, creadas: creadas });
+    });
+
+    /**
+     * Guardar o quitar de favoritos:  mismo boton, un poste de conmutador.
+     */
+    app.post('/receta/:id/favorito', requiereSesion, async function (req, res) {
+        const receta = await gestorDB.obtenerRecetaPorId(req.params.id);
+        if (!receta) {
+            return noExiste(res);
+        }
+
+        const usuario = req.session.usuario;
+        if (await gestorDB.esFavorito(usuario, receta._id)) {
+            await gestorDB.borrarFavorito(usuario, receta._id);
+            return res.redirect('/receta/' + receta._id + '?mensaje=Quitada+de+favoritos&tipoMensaje=alert-success');
+        }
+
+        await gestorDB.insertarFavorito(usuario, receta._id);
+        res.redirect('/receta/' + receta._id + '?mensaje=Guardada+en+favoritos&tipoMensaje=alert-success');
+    });
+
+    /**
+     * Valoracion de una receta:  de 1 a 5 estrellas, una por usuario, la
+     * ultima votacion sustituye a la anterior.
+     */
+    app.post('/receta/:id/valoracion', requiereSesion, async function (req, res) {
+        const receta = await gestorDB.obtenerRecetaPorId(req.params.id);
+        if (!receta) {
+            return noExiste(res);
+        }
+
+        const estrellas = parseInt(req.body.estrellas, 10);
+        if (!Number.isFinite(estrellas) || estrellas < 1 || estrellas > 5) {
+            return res.redirect('/receta/' + receta._id
+                + '?mensaje=La+valoracion+tiene+que+ser+de+1+a+5+estrellas&tipoMensaje=alert-warning');
+        }
+
+        await gestorDB.guardarValoracion(req.session.usuario, receta._id, estrellas);
+        res.redirect('/receta/' + receta._id + '?mensaje=Valoracion+guardada&tipoMensaje=alert-success');
     });
 };

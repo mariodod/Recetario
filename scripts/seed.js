@@ -208,6 +208,34 @@ const RECETAS = [
             'Tritúralas con el yogur y la miel hasta que quede cremoso.'
         ],
         etiquetas: ['rapido', 'fitness', 'vegetariano']
+    },
+    {
+        titulo: 'Sopa de verduras', tiempo: 30, dificultad: 'facil', momento: 'comida',
+        ingredientes: ['2 cebollas', '800 g de tomate', '1 l de caldo', '20 ml de aceite'],
+        preparacion: [
+            'Pocha la cebolla en el aceite a fuego suave.',
+            'Añade el tomate y el caldo, y cuece 20 minutos.',
+            'Tritura y ajusta de sal antes de servir.'
+        ],
+        etiquetas: ['vegetariano', 'ligero']
+    },
+    {
+        titulo: 'Tarta de manzana', tiempo: 60, dificultad: 'media', momento: 'postre',
+        ingredientes: ['3 manzanas', '200 g de harina', '150 g de azúcar', '100 g de mantequilla'],
+        preparacion: [
+            'Mezcla la harina, el azúcar y la mantequilla hasta obtener una miga.',
+            'Pon las manzanas en rodajas encima y hornea a 180 grados durante 40 minutos.'
+        ],
+        etiquetas: ['dulce']
+    },
+    {
+        titulo: 'Ensalada de pasta', tiempo: 20, dificultad: 'facil', momento: 'cena',
+        ingredientes: ['200 g de pasta', '100 g de queso', '1 tomate'],
+        preparacion: [
+            'Cuece la pasta y déjala enfriar.',
+            'Mézclala con el tomate y el queso en dados.'
+        ],
+        etiquetas: ['rapido', 'vegetariano']
     }
 ];
 
@@ -216,23 +244,33 @@ const USUARIO = {
     password: process.env.SEED_PASSWORD || 'recetario123'
 };
 
+//Raciones tipicas de cada momento, para no tener que escribirlas receta a
+//receta; las que ya traigan raciones las respetan
+const RACIONES_POR_MOMENTO = { desayuno: 2, comida: 4, cena: 2, postre: 8 };
+
 async function main() {
     gestorDB.init(process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario');
     await gestorDB.connect();
 
-    //Recetas
-    const existentes = await gestorDB.obtenerRecetas({});
-    if (existentes.length > 0) {
-        console.log('Ya hay ' + existentes.length + ' recetas: no se inserta ninguna.');
-    } else {
-        for (const receta of RECETAS) {
-            await gestorDB.insertarReceta(Object.assign({}, receta, {
-                autor: USUARIO.username,
-                creadaEn: new Date()
-            }));
+    //Recetas:  solo se insertan las que falten, asi que el script se puede
+    //ejecutar tantas veces como haga falta
+    let insertadas = 0;
+    for (const receta of RECETAS) {
+        const yaExiste = await gestorDB.obtenerRecetas({ titulo: receta.titulo });
+        if (yaExiste.length > 0) {
+            continue;
         }
-        console.log('Insertadas ' + RECETAS.length + ' recetas de ejemplo.');
+
+        await gestorDB.insertarReceta(Object.assign({}, receta, {
+            autor: USUARIO.username,
+            raciones: receta.raciones || RACIONES_POR_MOMENTO[receta.momento] || null,
+            creadaEn: new Date()
+        }));
+        insertadas++;
     }
+    console.log(insertadas > 0
+        ? 'Insertadas ' + insertadas + ' recetas de ejemplo.'
+        : 'No falta ninguna receta de ejemplo.');
 
     //Recetas anteriores a la autoria:  sin autor no puede editarlas nadie, asi
     //que se las asignamos al usuario de ejemplo
@@ -242,6 +280,19 @@ async function main() {
     }
     if (sinAutor.length > 0) {
         console.log('Asignadas ' + sinAutor.length + ' recetas antiguas a "' + USUARIO.username + '".');
+    }
+
+    //Recetas anteriores a las raciones:  cada una lleva las tipicas de su
+    //momento del dia, para poder escalarlas y montar la lista de la compra
+    const sinRaciones = await gestorDB.obtenerRecetas({ raciones: { $exists: false } });
+    for (const receta of sinRaciones) {
+        await gestorDB.actualizarReceta(
+            { _id: receta._id },
+            { raciones: RACIONES_POR_MOMENTO[receta.momento] || null }
+        );
+    }
+    if (sinRaciones.length > 0) {
+        console.log('Puestas raciones a ' + sinRaciones.length + ' recetas antiguas.');
     }
 
     //Etiquetas usadas por las recetas, para el filtro y el autocompletado

@@ -66,6 +66,7 @@ gestorDB.init(DB_URI);
 require("./routes/recetas.js")(app, gestorDB); //(app, gestorDB)
 require("./routes/menu.js")(app, gestorDB); //(app, gestorDB)
 require("./routes/users.js")(app, gestorDB); //(app, gestorDB)
+require("./routes/compra.js")(app, gestorDB); //(app, gestorDB)
 
 /**
  * Metodos de respuesta de express

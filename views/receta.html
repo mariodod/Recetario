@@ -17,6 +17,9 @@
     {% if receta.tiempo %}
     <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
     {% endif %}
+    {% if receta.raciones %}
+    <span class="badge bg-dark">{{ receta.raciones }} raciones</span>
+    {% endif %}
     {% if receta.dificultad %}
     <span class="badge bg-light text-dark border">{{ receta.dificultad }}</span>
     {% endif %}
@@ -28,13 +31,39 @@
     {% endfor %}
 </p>
 
-{% if usuario and receta.autor == usuario %}
+<!-- Raciones:  cambian las cantidades de los ingredientes (?raciones=6) -->
+{% if receta.raciones %}
+<p class="d-inline-flex align-items-center flex-wrap gap-2 mb-3">
+    <span class="text-muted">Raciones:</span>
+    {% if raciones > 1 %}
+    <a class="btn btn-sm btn-outline-secondary" href="/receta/{{ receta._id }}?raciones={{ raciones - 1 }}"
+        aria-label="Quitar una racion">&minus;</a>
+    {% endif %}
+    <strong>{{ raciones }}</strong>
+    {% if raciones < 50 %}
+    <a class="btn btn-sm btn-outline-secondary" href="/receta/{{ receta._id }}?raciones={{ raciones + 1 }}"
+        aria-label="Anadir una racion">+</a>
+    {% endif %}
+    {% if raciones != receta.raciones %}
+    <a class="btn btn-sm btn-link px-0" href="/receta/{{ receta._id }}">Volver a {{ receta.raciones }}</a>
+    {% endif %}
+</p>
+{% endif %}
+
+{% if usuario %}
 <div class="mb-3">
+    <form class="d-inline" method="POST" action="/receta/{{ receta._id }}/favorito">
+        <button class="btn {% if esFavorito %}btn-warning{% else %}btn-outline-warning{% endif %}" type="submit">
+            {% if esFavorito %}&#9733; Quitar de favoritos{% else %}&#9734; Guardar en favoritos{% endif %}
+        </button>
+    </form>
+    {% if receta.autor == usuario %}
     <a class="btn btn-outline-primary" href="/receta/{{ receta._id }}/editar">Editar</a>
     <form class="d-inline" method="POST" action="/receta/{{ receta._id }}/borrar"
         onsubmit="return confirm('¿Seguro que quieres borrar esta receta?')">
         <button class="btn btn-outline-danger" type="submit">Borrar</button>
     </form>
+    {% endif %}
 </div>
 {% endif %}
 
@@ -59,12 +88,12 @@
 <p class="text-muted">Preparación larga: merece la pena reservar tiempo.</p>
 {% endif %}
 
-{% if receta.ingredientes.length > 0 %}
+{% if ingredientes.length > 0 %}
 <h2 class="h5 mt-4">Ingredientes</h2>
 <ul>
-    {% for ingrediente in receta.ingredientes %}
+    {% for ingrediente in ingredientes %}
     <li>
-        <a href="/recetas?ingrediente={{ ingrediente }}">{{ ingrediente }}</a>
+        <a href="/recetas?ingrediente={{ ingrediente.nombre }}">{{ ingrediente.texto }}</a>
     </li>
     {% endfor %}
 </ul>
@@ -77,6 +106,29 @@
     <li class="list-group-item">{{ paso }}</li>
     {% endfor %}
 </ol>
+{% endif %}
+
+<h2 class="h5 mt-4">Valoración</h2>
+<p class="mb-2">
+    <span class="text-warning" aria-hidden="true">{% for estrella in estrellas %}{% if estrella <= valoracion.entera %}&#9733;{% else %}&#9734;{% endif %}{% endfor %}</span>
+    <span class="visually-hidden">{{ valoracion.media }} sobre 5</span>
+    {{ valoracion.media }}
+    <span class="text-muted">({{ valoracion.total }} valoraciones)</span>
+</p>
+{% if usuario %}
+<form method="POST" action="/receta/{{ receta._id }}/valoracion"
+    class="d-flex align-items-center flex-wrap gap-2 mb-4">
+    {% for estrella in estrellas %}
+    <div class="form-check">
+        <input class="form-check-input" type="radio" name="estrellas" value="{{ estrella }}"
+            id="valorar-{{ estrella }}" {% if valoracion.mia == estrella %}checked{% endif %} required />
+        <label class="form-check-label" for="valorar-{{ estrella }}">{{ estrella }}</label>
+    </div>
+    {% endfor %}
+    <button class="btn btn-sm btn-outline-primary" type="submit">Valorar</button>
+</form>
+{% else %}
+<p class="text-muted mb-4">Identifícate para valorar esta receta.</p>
 {% endif %}
 
 {% if relacionadas.length > 0 %}
