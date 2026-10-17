@@ -53,6 +53,16 @@ se ha migrado:
 - **Recetas completas**:  ademas del titulo, el tiempo, la dificultad y el
   momento del dia, cada receta tiene sus ingredientes, los pasos de la
   preparacion (numerados), una foto y un video.
+- **Raciones**:  cada receta dice para cuantas personas es y el detalle deja
+  subir o bajarlas con un boton (?raciones=6), escalando las cantidades de
+  los ingredientes que la traigan escrita ("200 g de harina" pasa a "400 g").
+- **Lista de la compra** (`/lista`):  en el listado se marcan las recetas con
+  las que se va a cocinar y la lista agrupa sus ingredientes, sumando los que
+  se piden en varias recetas y dejando sin cantidad lo que no la traiga.
+- **Favoritos**:  el detalle guarda o quita una receta con la estrella y
+  `/mis-recetas` las junta con las que has creado tu.
+- **Valoraciones**:  de 1 a 5 estrellas, una por usuario y receta; el detalle
+  muestra la media y deja cambiar tu votacion.
 - **Videos**:  los de YouTube y Vimeo se incrustan en la pagina de la receta;
   cualquier otro enlace se muestra simplemente como enlace.
 - **Fotos**:  se guardan en `public/fotos` con nombre aleatorio, limitadas a
@@ -67,14 +77,20 @@ se ha migrado:
 ### Modelo de datos
 
 ```
-recetas    { titulo, tiempo, dificultad, momento, ingredientes[], preparacion[],
-             etiquetas[], video, foto, autor, creadaEn, actualizadaEn }
-usuarios   { username, password, creadaEn }        // password: scrypt con sal
-etiquetas  { nombre, creadaEn }                    // indice unico sobre nombre
+recetas       { titulo, tiempo, raciones, dificultad, momento, ingredientes[],
+                preparacion[], etiquetas[], video, foto, autor, creadaEn,
+                actualizadaEn }
+usuarios      { username, password, creadaEn }     // password: scrypt con sal
+etiquetas     { nombre, creadaEn }                 // indice unico sobre nombre
+favoritos     { usuario, receta, creadaEn }        // indice unico usuario+receta
+valoraciones  { usuario, receta, estrellas, valoradaEn }   // indice unico usuario+receta
 ```
 
 Los ingredientes y la preparacion se escriben en un textarea, uno por linea;
-las etiquetas van separadas por comas.
+las etiquetas van separadas por comas. Los ingredientes son texto libre, asi
+que tambien sirven para buscar y filtrar; si traen una cantidad delante
+("200 g de harina") se lee para escalarlos con las raciones o sumarlos en la
+lista de la compra, y si no la traen se quedan tal cual.
 
 La busqueda textual se apoya en un indice de texto de MongoDB
 (`busqueda_textual`) sobre titulo, etiquetas, ingredientes y preparacion:  los
@@ -105,9 +121,11 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    npm run seed
    ```
 
-   Crea 20 recetas con sus ingredientes, preparación y etiquetas, las firma con
-   el usuario `mario` / `recetario123` y, si encuentra recetas sin autor de
-   antes, se las asigna a ese mismo usuario.
+   Inserta las recetas de ejemplo que falten (23 en total) con sus
+   ingredientes, preparación y etiquetas, las firma con el usuario `mario` /
+   `recetario123` y les pone raciones según el momento del día. Se puede
+   ejecutar cuantas veces se quiera: también rellena las recetas antiguas que
+   se hayan quedado sin autor ni raciones.
 
 4. **Arrancar**:
 
@@ -126,7 +144,8 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 
    Recorre todas las rutas y comprueba filtros, busqueda textual, paginacion,
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
-   permisos de autor, subida de fotos, incrustacion de videos y escape de HTML.
+   permisos de autor, subida de fotos, incrustacion de videos, escape de HTML,
+   raciones, lista de la compra, favoritos y valoraciones.
    Los datos que crea la prueba se borran al terminar.
 
 ## Rutas
@@ -140,6 +159,10 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 | `GET /receta/:id/editar` | Formulario de edicion, relleno (requiere sesion) |
 | `POST /receta/:id` | Guarda los cambios (requiere sesion) |
 | `POST /receta/:id/borrar` | Borra la receta y su foto (requiere sesion) |
+| `GET /lista` | Lista de la compra (`recetas=id1,id2`) |
+| `POST /receta/:id/favorito` | Guarda o quita la receta de favoritos (requiere sesion) |
+| `POST /receta/:id/valoracion` | De 1 a 5 estrellas, una por usuario (requiere sesion) |
+| `GET /mis-recetas` | Tus favoritas y las que has creado (requiere sesion) |
 | `GET/POST /menu` | Menu aleatorio (`momento`, `numero`) |
 | `GET/POST /login` | Identificacion |
 | `GET/POST /signup` | Registro |
@@ -157,12 +180,16 @@ modules/
   filtros.js            Criterios de busqueda del listado y del menu
   receta.js             Lectura y validacion del formulario
   recetaDelDia.js       Eleccion determinista de la receta del dia
+  raciones.js           Lectura y escalado de cantidades por raciones
+  compra.js             Agrupacion de ingredientes para la lista
   video.js              Incrustacion de videos de YouTube y Vimeo
   fotos.js              Subida y borrado de fotos
 routes/
-  recetas.js            Listado, filtros, detalle, alta, edicion y borrado
+  recetas.js            Listado, filtros, detalle, alta, edicion, borrado,
+                        favoritos, valoraciones y mis recetas
   menu.js               Menu aleatorio
   users.js              Registro, login y logout
+  compra.js             Lista de la compra
 scripts/
   seed.js               Datos de ejemplo
   smoke-test.js         Pruebas de rutas
@@ -176,13 +203,18 @@ los filtros van en la misma plantilla.
 
 ## Pendiente
 
-- No hay listado de "mis recetas" ni forma de ceder la autoría a otro usuario.
-  Las recetas sin autor no las puede editar nadie; `npm run seed` se las
-  asigna al usuario de ejemplo.
+- No hay forma de ceder la autoria de una receta a otro usuario. Las recetas
+  sin autor no las puede editar nadie; `npm run seed` se las asigna al usuario
+  de ejemplo.
 - Una receta por foto. Con varias fotos habria que pensar como organizarlas.
 - Las etiquetas se escriben separadas por comas, asi que una etiqueta que
   contenga comas no se puede guardar tal cual (los ingredientes y los pasos no
   tienen ese problema: van uno por linea).
+- El escalado por raciones y la suma de la lista de la compra son un intento
+  de leer la cantidad de delante de cada ingrediente; un ingrediente raro
+  ("al gusto", "un puñado") se queda tal cual y no se suma.
+- La lista de la compra vive solo en la url: los checks que marques no se
+  guardan al recargar, pero en cambio la lista se puede compartir tal cual.
 - `npm audit` avisa de un fallo de denegacion de servicio en `braces`
   (dependencia de `chokidar`, usada por nodemon y por la recarga de
   plantillas de Nunjucks). No tiene correccion publicada y solo afecta a
