@@ -58,7 +58,11 @@ se ha migrado:
   los ingredientes que la traigan escrita ("200 g de harina" pasa a "400 g").
 - **Lista de la compra** (`/lista`):  en el listado se marcan las recetas con
   las que se va a cocinar y la lista agrupa sus ingredientes, sumando los que
-  se piden en varias recetas y dejando sin cantidad lo que no la traiga.
+  se piden en varias recetas y dejando sin cantidad lo que no la traiga. Cada
+  ingrediente se puede marcar como comprado:  las marcas se guardan en la
+  sesion de cada navegador, asi que aguantan al recargar o volver otro dia,
+  mientras que las recetas elegidas siguen yendo en la url para compartir la
+  lista tal cual.
 - **Favoritos**:  el detalle guarda o quita una receta con la estrella y
   `/mis-recetas` las junta con las que has creado tu.
 - **Valoraciones**:  de 1 a 5 estrellas, una por usuario y receta; el detalle
@@ -156,7 +160,7 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
    permisos de autor, cesion de autoría y filtro por autor, etiquetas con
    comas, subida y quitado de fotos, incrustacion de videos, escape de HTML,
-   raciones, lista de la compra, favoritos y valoraciones.
+   raciones, lista de la compra y sus marcas, favoritos y valoraciones.
    Los datos que crea la prueba se borran al terminar.
 
 ## Rutas
@@ -171,6 +175,8 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 | `POST /receta/:id` | Guarda los cambios y, si se pide, cede la autoría (requiere ser el autor) |
 | `POST /receta/:id/borrar` | Borra la receta y sus fotos (requiere sesion) |
 | `GET /lista` | Lista de la compra (`recetas=id1,id2`) |
+| `POST /lista/marcar` | Guarda en la sesion las marcas de los ingredientes |
+| `POST /lista/vaciar` | Quita todas las marcas |
 | `POST /receta/:id/favorito` | Guarda o quita la receta de favoritos (requiere sesion) |
 | `POST /receta/:id/valoracion` | De 1 a 5 estrellas, una por usuario (requiere sesion) |
 | `GET /mis-recetas` | Tus favoritas y las que has creado (requiere sesion) |
@@ -220,8 +226,9 @@ los filtros van en la misma plantilla.
 - El escalado por raciones y la suma de la lista de la compra son un intento
   de leer la cantidad de delante de cada ingrediente; un ingrediente raro
   ("al gusto", "un puñado") se queda tal cual y no se suma.
-- La lista de la compra vive solo en la url: los checks que marques no se
-  guardan al recargar, pero en cambio la lista se puede compartir tal cual.
+- Las marcas de la lista de la compra y el resto de la sesion viven en la
+  memoria del servidor (el almacén por defecto de express-session), asi que se
+  pierden al reiniciar; con una tienda de sesiones en MongoDB sobrevivirian.
 - `npm audit` avisa de un fallo de denegacion de servicio en `braces`
   (dependencia de `chokidar`, usada por nodemon y por la recarga de
   plantillas de Nunjucks). No tiene correccion publicada y solo afecta a
