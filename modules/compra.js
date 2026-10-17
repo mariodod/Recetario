@@ -11,8 +11,9 @@ const { parsear, formatear } = require('./raciones.js');
 
 /**
  * `listas` es una lista de { receta, ingredientes[] }.
- * Devuelve [{ nombre, unidad, cantidad, texto, recetas[] }] ordenada por
- * nombre.
+ * Devuelve [{ clave, nombre, unidad, cantidad, texto, recetas[] }] ordenada
+ * por nombre. La `clave` identifica al grupo (nombre y unidad) y es la que se
+ * usa para marcarlo como comprado.
  */
 function agruparIngredientes(listas) {
     const grupos = new Map();
@@ -30,6 +31,9 @@ function agruparIngredientes(listas) {
             const clave = parseado.nombre + '|' + parseado.unidad;
             if (!grupos.has(clave)) {
                 grupos.set(clave, {
+                    //Identidad estable del grupo:  es la que se usa para
+                    //marcarlo como comprado en la lista de la compra
+                    clave: clave,
                     nombre: parseado.nombre,
                     unidad: parseado.unidad,
                     preposicion: parseado.preposicion || '',

@@ -26,6 +26,17 @@ function comprobar(nombre, condicion, detalle) {
 }
 
 /**
+ * Dice si la casilla con esa clave (value=...) sale marcada en el html de la
+ * lista de la compra.
+ */
+function casillaMarcada(html, clave) {
+    const inicio = html.indexOf('value="' + clave + '"');
+    if (inicio < 0) return false;
+    const fin = html.indexOf('/>', inicio);
+    return html.slice(inicio, fin < 0 ? inicio + 300 : fin).includes('checked');
+}
+
+/**
  * Cada flujo tiene su propio navegador, con su cookie de sesion.
  */
 function crearNavegador() {
@@ -404,7 +415,8 @@ async function main() {
     const compra = await anonimo.get('/lista?recetas=' + idCantidades + ',' + idCantidadesExtra);
     comprobar('la lista de la compra suma lo que piden varias recetas',
         compra.texto.includes('500 g de harina') && compra.texto.includes('4 huevos'));
-    comprobar('lo repetido va una sola vez', (compra.texto.match(/harina/g) || []).length === 1);
+    comprobar('lo repetido va una sola vez',
+        (compra.texto.match(/name="marcado"/g) || []).length === 3);
     comprobar('la lista enseña las recetas elegidas y deja quitar una',
         compra.texto.includes('Receta con cantidades extra')
         && compra.texto.includes('Quitar')
@@ -412,6 +424,71 @@ async function main() {
 
     const listaVacia = await anonimo.get('/lista');
     comprobar('la lista vacia explica como se usa', listaVacia.texto.includes('No has elegido ninguna receta'));
+
+    // ------------------------------------------------------------------
+    // Las marcas de la lista de la compra se guardan en la sesion
+    // ------------------------------------------------------------------
+    const idsLista = idCantidades + ',' + idCantidadesExtra;
+    const conCasillas = await anonimo.get('/lista?recetas=' + idsLista);
+    const claves = Array.from(conCasillas.texto.matchAll(/name="marcado" value="([^"]+)"/g))
+        .map(function (coincidencia) { return coincidencia[1]; });
+    comprobar('la lista deja marcar cada ingrediente',
+        claves.length === 3 && conCasillas.texto.includes('action="/lista/marcar"'));
+
+    const marcarUna = new URLSearchParams();
+    marcarUna.append('recetas', idsLista);
+    marcarUna.append('marcado', claves[0]);
+    const marcada = await anonimo.post('/lista/marcar', marcarUna);
+    comprobar('guardar las marcas vuelve a la misma lista',
+        marcada.status === 302
+        && String(marcada.cabeceras.get('location')).includes('recetas=' + idsLista));
+
+    const conMarcas = await anonimo.get('/lista?recetas=' + idsLista);
+    comprobar('la marca guardada sale marcada al recargar',
+        casillaMarcada(conMarcas.texto, claves[0])
+        && (conMarcas.texto.match(/checked/g) || []).length === 1);
+
+    const sinMarcas = new URLSearchParams();
+    sinMarcas.append('recetas', idsLista);
+    await anonimo.post('/lista/marcar', sinMarcas);
+    const desmarcada = await anonimo.get('/lista?recetas=' + idsLista);
+    comprobar('guardar sin marcas las quita', (desmarcada.texto.match(/checked/g) || []).length === 0);
+
+    //La marca de otra lista no se pierde al guardar las de una
+    const listaPimienta = await anonimo.get('/lista?recetas=' + idPrueba);
+    const clavePimienta = Array.from(listaPimienta.texto.matchAll(/name="marcado" value="([^"]+)"/g))
+        .map(function (coincidencia) { return coincidencia[1]; })
+        .find(function (clave) { return clave.startsWith('pimienta'); }) || '';
+    comprobar('la otra lista tiene su propio ingrediente', Boolean(clavePimienta));
+
+    const marcarPimienta = new URLSearchParams();
+    marcarPimienta.append('recetas', idPrueba);
+    marcarPimienta.append('marcado', clavePimienta);
+    await anonimo.post('/lista/marcar', marcarPimienta);
+
+    const guardarOtraLista = new URLSearchParams();
+    guardarOtraLista.append('recetas', idsLista);
+    await anonimo.post('/lista/marcar', guardarOtraLista);
+
+    const pimientaSigue = await anonimo.get('/lista?recetas=' + idPrueba);
+    comprobar('al guardar una lista no se pierden las marcas de otras',
+        casillaMarcada(pimientaSigue.texto, clavePimienta));
+
+    const vaciado = await anonimo.post('/lista/vaciar', { recetas: idPrueba });
+    comprobar('quitar todas las marcas vuelve a la lista', vaciado.status === 302);
+    const sinMarcasNinguna = await anonimo.get('/lista?recetas=' + idPrueba);
+    comprobar('tras quitarlas no queda ninguna marcada',
+        (sinMarcasNinguna.texto.match(/checked/g) || []).length === 0);
+
+    //Lo que no corresponde a ningun ingrediente de la lista no se guarda
+    const basura = new URLSearchParams();
+    basura.append('recetas', idsLista);
+    basura.append('marcado', '../../etc/passwd');
+    await anonimo.post('/lista/marcar', basura);
+    const sinBasura = await anonimo.get('/lista?recetas=' + idsLista);
+    comprobar('una marca ajena a la lista no se guarda ni se refleja',
+        !sinBasura.texto.includes('etc/passwd')
+        && (sinBasura.texto.match(/checked/g) || []).length === 0);
 
     const favoritoSinSesion = await anonimo.post('/receta/' + idCantidades + '/favorito', null);
     comprobar('guardar en favoritos exige identificarse', favoritoSinSesion.status === 302);
