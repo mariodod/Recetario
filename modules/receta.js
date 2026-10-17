@@ -23,9 +23,9 @@ function recetaVacia() {
 /**
  * Lectura y validacion del formulario de recetas.
  *
- * Los ingredientes y los pasos van en un textarea, uno por linea; las
- * etiquetas se escriben separadas por comas. Todo se guarda como arrays en
- * minusculas y sin repetidos.
+ * Los ingredientes, los pasos y las etiquetas van en un textarea, uno por
+ * linea; las etiquetas y los ingredientes se guardan en minusculas y sin
+ * repetidos.
  *
  * `fotosActuales` son las fotos que ya tenia la receta: se conservan si el
  * formulario no trae ninguna nueva (el formulario decide cuales se quitan).
@@ -107,15 +107,11 @@ function enMinusculas(elementos) {
 }
 
 /**
- * Las etiquetas se escriben separadas por comas.
+ * Las etiquetas van una por linea, como los ingredientes:  el separador ya no
+ * es la coma, asi que una etiqueta puede llevar comas ("pollo, con piel").
  */
 function lista(texto) {
-    return Array.from(new Set(
-        String(texto || '')
-            .split(',')
-            .map(function (elemento) { return elemento.trim().toLowerCase(); })
-            .filter(Boolean)
-    ));
+    return enMinusculas(lineas(texto));
 }
 
 module.exports = { parsearReceta, recetaVacia };

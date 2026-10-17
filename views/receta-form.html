@@ -108,16 +108,12 @@
 
     <div class="mb-3">
         <label class="form-label" for="etiquetas">Etiquetas</label>
-        <input class="form-control" type="text" id="etiquetas" name="etiquetas"
-            list="lista-etiquetas" value="{{ receta.etiquetas }}"
-            placeholder="Sepáralas con comas: vegetariano, rapido" />
-        <datalist id="lista-etiquetas">
-            {% for etiqueta in etiquetas %}
-            <option value="{{ etiqueta.nombre }}"></option>
-            {% endfor %}
-        </datalist>
+        <textarea class="form-control" id="etiquetas" name="etiquetas" rows="3"
+            placeholder="Una por linea, como los ingredientes:&#10;vegetariano&#10;rapido">{{ receta.etiquetas }}</textarea>
         <div class="form-text">
-            Las etiquetas nuevas se guardan y sirven para filtrar y recomendar en el resto de la aplicacion.
+            Una etiqueta por linea (van en minusculas y las repetidas se guardan una sola vez).
+            El separador ya no es la coma, asi que puedes escribir etiquetas con comas:
+            "pollo, con piel". Sirven para filtrar y recomendar en el resto de la aplicacion.
         </div>
     </div>
 

@@ -274,8 +274,9 @@ async function main() {
     const etiquetaNueva = 'etiqueta-de-prueba-' + Date.now();
     const formularioReceta = await registro.get('/receta');
     comprobar('el formulario de receta se abre identificado', formularioReceta.status === 200);
-    comprobar('el formulario de receta trae el autocompletado de etiquetas',
-        formularioReceta.texto.includes('id="lista-etiquetas"'));
+    comprobar('el formulario pide las etiquetas una por linea',
+        /<textarea[^>]*name="etiquetas"/.test(formularioReceta.texto)
+        && !formularioReceta.texto.includes('list="lista-etiquetas"'));
     comprobar('el formulario pide la preparacion y las fotos',
         formularioReceta.texto.includes('name="preparacion"') && formularioReceta.texto.includes('name="fotos"')
         && formularioReceta.texto.includes('multiple'));
@@ -295,7 +296,7 @@ async function main() {
     comprobar('un enlace de video que no es http se rechaza', videoMalo.status === 400);
 
     const creada = await registro.post('/receta', Object.assign(formulario('Receta de prueba'), {
-        etiquetas: etiquetaNueva + ', Receta de prueba',
+        etiquetas: etiquetaNueva + '\nReceta de prueba, con coma',
         video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
     }));
     const destino = creada.cabeceras.get('location') || '';
@@ -309,6 +310,18 @@ async function main() {
         recetaGuardada.ingredientes.join('|') === 'huevo|sal|pimienta'
         && recetaGuardada.preparacion.length === 2
         && recetaGuardada.etiquetas.includes(etiquetaNueva));
+
+    comprobar('una etiqueta puede llevar comas y se guarda entera',
+        recetaGuardada.etiquetas.includes('receta de prueba, con coma')
+        && recetaGuardada.etiquetas.length === 2);
+
+    const edicionEtiquetas = await registro.get('/receta/' + idPrueba + '/editar');
+    comprobar('la etiqueta con comas se vuelve a escribir entera en el formulario',
+        edicionEtiquetas.texto.includes('receta de prueba, con coma'));
+
+    const filtroComa = await anonimo.get('/recetas?etiqueta=' + encodeURIComponent('receta de prueba, con coma'));
+    comprobar('se puede filtrar por una etiqueta con comas',
+        filtroComa.texto.includes('Receta de prueba'));
 
     const conVideo = await anonimo.get('/receta/' + idPrueba);
     comprobar('el video de YouTube se incrusta en el detalle',
@@ -444,7 +457,7 @@ async function main() {
     comprobar('mis recetas tambien exige identificarse', misRecetasSinSesion.status === 302);
 
     const etiquetasGuardadas = await gestorDB.obtenerEtiquetas();
-    comprobar('las etiquetas nuevas pasan al listado general (filtro y autocompletado)',
+    comprobar('las etiquetas nuevas pasan al listado general (sirven para filtrar)',
         etiquetasGuardadas.some(function (etiqueta) { return etiqueta.nombre === etiquetaNueva; }));
 
     const filtroNuevo = await anonimo.get('/recetas?etiqueta=' + encodeURIComponent(etiquetaNueva));
@@ -676,7 +689,7 @@ async function main() {
     await gestorDB.borrarFavoritosDe(usuario2);
     await gestorDB.borrarValoracionesDe(usuario2);
     await gestorDB.borrarEtiqueta(etiquetaNueva);
-    await gestorDB.borrarEtiqueta('receta de prueba');
+    await gestorDB.borrarEtiqueta('receta de prueba, con coma');
     await gestorDB.borrarEtiqueta('receta de prueba (editada)');
     await gestorDB.borrarUsuario({ username: usuario });
     await gestorDB.borrarUsuario({ username: usuario2 });

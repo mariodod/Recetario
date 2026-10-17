@@ -19,7 +19,7 @@ function paraElFormulario(receta) {
     return Object.assign({}, receta, {
         ingredientes: (receta.ingredientes || []).join('\n'),
         preparacion: (receta.preparacion || []).join('\n'),
-        etiquetas: (receta.etiquetas || []).join(', '),
+        etiquetas: (receta.etiquetas || []).join('\n'),
         fotos: receta.fotos || [],
         video: receta.video || ''
     });
@@ -71,7 +71,6 @@ module.exports = function (app, gestorDB) {
             receta: opciones.receta,
             errores: opciones.errores || [],
             modo: opciones.modo || 'crear',
-            etiquetas: await gestorDB.obtenerEtiquetas(),
             autores: autores,
             maximoFotos: MAX_FOTOS,
             dificultades: DIFICULTADES,
