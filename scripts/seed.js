@@ -264,6 +264,7 @@ async function main() {
         await gestorDB.insertarReceta(Object.assign({}, receta, {
             autor: USUARIO.username,
             raciones: receta.raciones || RACIONES_POR_MOMENTO[receta.momento] || null,
+            fotos: [],
             creadaEn: new Date()
         }));
         insertadas++;
@@ -293,6 +294,21 @@ async function main() {
     }
     if (sinRaciones.length > 0) {
         console.log('Puestas raciones a ' + sinRaciones.length + ' recetas antiguas.');
+    }
+
+    //Recetas anteriores a las fotos multiples:  la foto unica pasa a la lista
+    //de fotos (y a las que no tenian ninguna se le pone la lista vacia); el
+    //campo viejo se deja de usar del todo
+    const sinFotos = await gestorDB.obtenerRecetas({ fotos: { $exists: false } });
+    for (const receta of sinFotos) {
+        await gestorDB.actualizarReceta(
+            { _id: receta._id },
+            { fotos: receta.foto ? [receta.foto] : [] }
+        );
+    }
+    await gestorDB.quitarCampoDeRecetas('foto');
+    if (sinFotos.length > 0) {
+        console.log('Ajustada la lista de fotos de ' + sinFotos.length + ' recetas antiguas.');
     }
 
     //Etiquetas usadas por las recetas, para el filtro y el autocompletado

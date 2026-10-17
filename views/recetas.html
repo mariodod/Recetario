@@ -86,8 +86,8 @@
         <li class="list-group-item d-flex align-items-center">
             <input class="form-check-input me-2 flex-shrink-0" type="checkbox" name="recetas"
                 value="{{ receta._id }}" aria-label="Anadir {{ receta.titulo }} a la lista de la compra" />
-            {% if receta.foto %}
-            <img src="/fotos/{{ receta.foto }}" alt="" height="48" class="rounded border me-2 flex-shrink-0" />
+            {% if receta.fotos.length > 0 %}
+            <img src="/fotos/{{ receta.fotos[0] }}" alt="" height="48" class="rounded border me-2 flex-shrink-0" />
             {% endif %}
             <a href="/receta/{{ receta._id }}" class="me-1">{{ receta.titulo }}</a>
             {% if receta.tiempo %}

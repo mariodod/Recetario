@@ -8,7 +8,7 @@ const path = require('node:path');
 const BASE = 'http://localhost:8081';
 const gestorDB = require('../modules/gestorDB.js');
 const { extraerFiltros, consultaDeFiltros } = require('../modules/filtros.js');
-const { CARPETA, borrarFoto } = require('../modules/fotos.js');
+const { CARPETA, borrarFotos } = require('../modules/fotos.js');
 
 //PNG de 1x1 valido, para las pruebas de subida de fotos
 const PNG = Buffer.from(
@@ -276,8 +276,9 @@ async function main() {
     comprobar('el formulario de receta se abre identificado', formularioReceta.status === 200);
     comprobar('el formulario de receta trae el autocompletado de etiquetas',
         formularioReceta.texto.includes('id="lista-etiquetas"'));
-    comprobar('el formulario pide la preparacion y la foto',
-        formularioReceta.texto.includes('name="preparacion"') && formularioReceta.texto.includes('name="foto"'));
+    comprobar('el formulario pide la preparacion y las fotos',
+        formularioReceta.texto.includes('name="preparacion"') && formularioReceta.texto.includes('name="fotos"')
+        && formularioReceta.texto.includes('multiple'));
 
     const recetaIncompleta = await registro.post('/receta', { titulo: '   ' });
     comprobar('una receta incompleta se rechaza con todos los errores', recetaIncompleta.status === 400
@@ -555,34 +556,88 @@ async function main() {
     subida.append('momento', 'cena');
     subida.append('ingredientes', 'Huevo');
     subida.append('preparacion', 'Se hace en un minuto.');
-    subida.append('foto', new Blob([PNG], { type: 'image/png' }), 'foto.png');
+    subida.append('fotos', new Blob([PNG], { type: 'image/png' }), 'foto1.png');
+    subida.append('fotos', new Blob([PNG], { type: 'image/png' }), 'foto2.png');
 
     const conFoto = await registro.subir('/receta', subida);
     const destinoFoto = conFoto.cabeceras.get('location') || '';
-    comprobar('una receta con foto se guarda', conFoto.status === 302 && destinoFoto.startsWith('/receta/'));
+    comprobar('una receta con varias fotos se guarda',
+        conFoto.status === 302 && destinoFoto.startsWith('/receta/'));
 
     const idConFoto = destinoFoto.split('?')[0].split('/').pop();
+    const jsonConFoto = await anonimo.get('/receta/' + idConFoto, { headers: { Accept: 'application/json' } });
+    const guardadas = JSON.parse(jsonConFoto.texto).fotos || [];
+    comprobar('las dos fotos se guardan en la base de datos', guardadas.length === 2);
+
     const detalleConFoto = await anonimo.get('/receta/' + idConFoto);
-    const nombreFoto = (detalleConFoto.texto.match(/\/fotos\/([a-f0-9]+\.png)/) || [])[1];
-    comprobar('la foto se guarda en disco y se muestra en el detalle',
-        Boolean(nombreFoto) && fs.existsSync(path.join(CARPETA, nombreFoto)));
+    comprobar('las fotos se guardan en disco y salen en el detalle',
+        guardadas.every(function (foto) { return fs.existsSync(path.join(CARPETA, foto)); })
+        && guardadas.every(function (foto) { return detalleConFoto.texto.includes('/fotos/' + foto); }));
 
     const listadoConFoto = await anonimo.get('/recetas?titulo=Receta+con+foto');
-    comprobar('la miniatura de la foto sale en el listado',
-        listadoConFoto.texto.includes('/fotos/' + nombreFoto));
+    comprobar('la miniatura de la primera foto sale en el listado',
+        listadoConFoto.texto.includes('/fotos/' + guardadas[0]));
+
+    const quitarPrimera = await registro.post('/receta/' + idConFoto,
+        Object.assign(formulario('Receta con foto'), { quitarFoto: guardadas[0] }));
+    const trasQuitar = JSON.parse((await anonimo.get('/receta/' + idConFoto, {
+        headers: { Accept: 'application/json' }
+    })).texto).fotos;
+    comprobar('marcar una foto para quitarla la saca de la receta',
+        quitarPrimera.status === 302 && trasQuitar.join() === guardadas[1]);
+    comprobar('y la borra del disco sin tocar a la otra',
+        !fs.existsSync(path.join(CARPETA, guardadas[0]))
+        && fs.existsSync(path.join(CARPETA, guardadas[1])));
+
+    const travesia = await registro.post('/receta/' + idConFoto,
+        Object.assign(formulario('Receta con foto'), { quitarFoto: '../../app.js' }));
+    comprobar('solo se pueden quitar fotos que sean de la receta',
+        travesia.status === 302 && fs.existsSync(path.join(CARPETA, guardadas[1]))
+        && fs.existsSync(path.join(__dirname, '..', 'app.js')));
+
+    //Cinco fotos caben, pero una mas ya no
+    const subidaLlena = new FormData();
+    subidaLlena.append('titulo', 'Receta con foto');
+    subidaLlena.append('tiempo', '15');
+    subidaLlena.append('dificultad', 'facil');
+    subidaLlena.append('momento', 'cena');
+    subidaLlena.append('ingredientes', 'Huevo');
+    subidaLlena.append('preparacion', 'Se hace en un minuto.');
+    for (let i = 0; i < 5; i++) {
+        subidaLlena.append('fotos', new Blob([PNG], { type: 'image/png' }), 'foto-' + i + '.png');
+    }
+    const llena = await registro.subir('/receta', subidaLlena);
+    const idLlena = (llena.cabeceras.get('location') || '').split('?')[0].split('/').pop();
+    comprobar('una receta puede guardar varias fotos', llena.status === 302);
+
+    const ficherosAntes = fs.readdirSync(CARPETA).length;
+    const desbordada = new FormData();
+    desbordada.append('titulo', 'Receta con foto');
+    desbordada.append('tiempo', '15');
+    desbordada.append('dificultad', 'facil');
+    desbordada.append('momento', 'cena');
+    desbordada.append('ingredientes', 'Huevo');
+    desbordada.append('preparacion', 'Se hace en un minuto.');
+    desbordada.append('fotos', new Blob([PNG], { type: 'image/png' }), 'una-mas.png');
+    desbordada.append('fotos', new Blob([PNG], { type: 'image/png' }), 'otra-mas.png');
+    const demasiado = await registro.subir('/receta/' + idLlena, desbordada);
+    comprobar('una receta no puede pasarse del limite de fotos',
+        demasiado.status === 400 && demasiado.texto.includes('maximo 6 fotos'));
+    comprobar('las fotos que sobran no se quedan en disco',
+        fs.readdirSync(CARPETA).length === ficherosAntes);
 
     const subidaMala = new FormData();
     subidaMala.append('titulo', 'Receta con archivo raro');
     subidaMala.append('preparacion', 'No importa.');
-    subidaMala.append('foto', new Blob([Buffer.from('no soy una imagen')], { type: 'text/plain' }), 'nota.txt');
+    subidaMala.append('fotos', new Blob([Buffer.from('no soy una imagen')], { type: 'text/plain' }), 'nota.txt');
     const archivoMalo = await registro.subir('/receta', subidaMala);
     comprobar('solo se aceptan imagenes', archivoMalo.status === 400
         && archivoMalo.texto.includes('JPEG, PNG, WEBP o GIF'));
 
     const borrada = await registro.post('/receta/' + idConFoto + '/borrar', null);
     comprobar('una receta se puede borrar', borrada.status === 302);
-    comprobar('al borrar la receta desaparece su foto del disco',
-        !fs.existsSync(path.join(CARPETA, nombreFoto || 'no-existe')));
+    comprobar('al borrar la receta desaparecen sus fotos del disco',
+        !fs.existsSync(path.join(CARPETA, guardadas[1])));
     comprobar('la receta borrada ya no se puede ver',
         (await anonimo.get('/receta/' + idConFoto)).status === 404);
 
@@ -612,7 +667,7 @@ async function main() {
     };
     const dePrueba = await gestorDB.obtenerRecetas(titulosDePrueba);
     for (const receta of dePrueba) {
-        await borrarFoto(receta.foto);
+        await borrarFotos(receta.fotos);
     }
     await gestorDB.eliminarReceta(titulosDePrueba);
     await gestorDB.eliminarReceta({ titulo: 'No deberia guardarse' });

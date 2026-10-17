@@ -82,21 +82,28 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label" for="foto">Foto (opcional)</label>
-        {% if receta.foto %}
-        <div class="mb-2">
-            <img src="/fotos/{{ receta.foto }}" alt="Foto actual de la receta" height="120"
-                class="rounded border" />
-            <div class="form-text">
-                <label class="form-check-label">
-                    <input class="form-check-input" type="checkbox" name="quitarFoto" id="quitarFoto" />
-                    Quitar la foto actual
-                </label>
-            </div>
-        </div>
+        <label class="form-label" for="fotos">Fotos (opcional)</label>
+        {% if receta.fotos.length > 0 %}
+        <ul class="list-unstyled d-flex flex-wrap gap-3 mb-2">
+            {% for foto in receta.fotos %}
+            <li>
+                <img src="/fotos/{{ foto }}" alt="Foto {{ loop.index }} de la receta" height="96"
+                    class="rounded border d-block mb-1" />
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="quitarFoto" value="{{ foto }}"
+                        id="quitar-{{ loop.index }}" />
+                    <label class="form-check-label" for="quitar-{{ loop.index }}">Quitar</label>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
         {% endif %}
-        <input class="form-control" type="file" id="foto" name="foto" accept="image/*" />
-        <div class="form-text">JPEG, PNG, WEBP o GIF de hasta 5 MB.</div>
+        <input class="form-control" type="file" id="fotos" name="fotos" accept="image/*" multiple />
+        <div class="form-text">
+            JPEG, PNG, WEBP o GIF de hasta 5 MB cada una. Puedes elegir varias de una vez
+            y guardar hasta {{ maximoFotos }} por receta; las que marques como "Quitar" se
+            borran al guardar los cambios.
+        </div>
     </div>
 
     <div class="mb-3">

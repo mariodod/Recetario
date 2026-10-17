@@ -16,8 +16,8 @@
 <ul class="list-group mb-4">
     {% for receta in creadas %}
     <li class="list-group-item d-flex align-items-center">
-        {% if receta.foto %}
-        <img src="/fotos/{{ receta.foto }}" alt="" height="48" class="rounded border me-2 flex-shrink-0" />
+        {% if receta.fotos.length > 0 %}
+        <img src="/fotos/{{ receta.fotos[0] }}" alt="" height="48" class="rounded border me-2 flex-shrink-0" />
         {% endif %}
         <a href="/receta/{{ receta._id }}" class="me-1">{{ receta.titulo }}</a>
         {% if receta.tiempo %}
@@ -43,8 +43,8 @@
 <ul class="list-group mb-4">
     {% for receta in guardadas %}
     <li class="list-group-item d-flex align-items-center">
-        {% if receta.foto %}
-        <img src="/fotos/{{ receta.foto }}" alt="" height="48" class="rounded border me-2 flex-shrink-0" />
+        {% if receta.fotos.length > 0 %}
+        <img src="/fotos/{{ receta.fotos[0] }}" alt="" height="48" class="rounded border me-2 flex-shrink-0" />
         {% endif %}
         <a href="/receta/{{ receta._id }}" class="me-1">{{ receta.titulo }}</a>
         {% if receta.tiempo %}

@@ -1,6 +1,6 @@
 const requiereSesion = require('../modules/autenticacion.js');
 const { parsearReceta } = require('../modules/receta.js');
-const { subirFoto, borrarFoto } = require('../modules/fotos.js');
+const { subirFotos, nombresDe, borrarFotos, MAX_FOTOS } = require('../modules/fotos.js');
 const { embeberVideo } = require('../modules/video.js');
 const { escalar } = require('../modules/raciones.js');
 const {
@@ -20,6 +20,7 @@ function paraElFormulario(receta) {
         ingredientes: (receta.ingredientes || []).join('\n'),
         preparacion: (receta.preparacion || []).join('\n'),
         etiquetas: (receta.etiquetas || []).join(', '),
+        fotos: receta.fotos || [],
         video: receta.video || ''
     });
 }
@@ -72,6 +73,7 @@ module.exports = function (app, gestorDB) {
             modo: opciones.modo || 'crear',
             etiquetas: await gestorDB.obtenerEtiquetas(),
             autores: autores,
+            maximoFotos: MAX_FOTOS,
             dificultades: DIFICULTADES,
             momentos: MOMENTOS
         });
@@ -171,25 +173,21 @@ module.exports = function (app, gestorDB) {
      */
     app.get('/receta', requiereSesion, async function (req, res) {
         await pintarFormulario(res, {
-            receta: paraElFormulario({ ingredientes: [], preparacion: [], etiquetas: [] }),
+            receta: paraElFormulario({ ingredientes: [], preparacion: [], etiquetas: [], fotos: [] }),
             modo: 'crear'
         });
     });
 
-    app.post('/receta', requiereSesion, subirFoto, async function (req, res) {
-        const resultado = parsearReceta(req.body, {
-            fotoActual: req.file ? req.file.filename : null
-        });
+    app.post('/receta', requiereSesion, subirFotos, async function (req, res) {
+        const resultado = parsearReceta(req.body, { fotosActuales: nombresDe(req.files) });
 
-        if (req.errorFoto || resultado.errores.length > 0) {
-            //La foto no se guarda si el resto del formulario no es valido
-            if (req.file) {
-                await borrarFoto(req.file.filename);
-                resultado.receta.foto = null;
-            }
+        if (req.errorFotos || resultado.errores.length > 0) {
+            //Las fotos no se guardan si el resto del formulario no es valido
+            await borrarFotos(nombresDe(req.files));
+            resultado.receta.fotos = [];
             return pintarFormulario(res, {
                 receta: paraElFormulario(resultado.receta),
-                errores: req.errorFoto ? [req.errorFoto] : resultado.errores,
+                errores: req.errorFotos ? [req.errorFotos] : resultado.errores,
                 modo: 'crear',
                 estado: 400
             });
@@ -226,36 +224,35 @@ module.exports = function (app, gestorDB) {
         await pintarFormulario(res, { receta: paraElFormulario(existente), modo: 'editar' });
     });
 
-    app.post('/receta/:id', requiereSesion, subirFoto, async function (req, res) {
+    app.post('/receta/:id', requiereSesion, subirFotos, async function (req, res) {
         const existente = await gestorDB.obtenerRecetaPorId(req.params.id);
         if (!existente) {
-            if (req.file) await borrarFoto(req.file.filename);
+            await borrarFotos(nombresDe(req.files));
             return noExiste(res);
         }
         if (!esDelAutor(existente, req)) {
-            if (req.file) await borrarFoto(req.file.filename);
+            await borrarFotos(nombresDe(req.files));
             return sinPermisos(res, existente, 'editarla');
         }
 
-        //La foto nueva sustituye a la vieja; si no hay nueva se conserva,
-        //salvo que se pida eliminarla expresamente
-        let foto = existente.foto;
-        if (req.file) {
-            foto = req.file.filename;
-        } else if (req.body.quitarFoto === 'on') {
-            foto = null;
-        }
+        //Las fotos marcadas en el formulario se quitan de la receta y las
+        //nuevas se anaden a las que se quedan
+        const quitar = [].concat(req.body.quitarFoto || []);
+        const fotosQueSeQuedan = (existente.fotos || []).filter(function (foto) {
+            return !quitar.includes(foto);
+        });
 
-        const resultado = parsearReceta(req.body, { fotoActual: foto });
+        const resultado = parsearReceta(req.body, {
+            fotosActuales: fotosQueSeQuedan.concat(nombresDe(req.files))
+        });
 
-        if (req.errorFoto || resultado.errores.length > 0) {
-            if (req.file) {
-                await borrarFoto(req.file.filename);
-                resultado.receta.foto = existente.foto;
-            }
+        if (req.errorFotos || resultado.errores.length > 0) {
+            //Las fotos recien subidas no se quedan si el resto no es valido
+            await borrarFotos(nombresDe(req.files));
+            resultado.receta.fotos = existente.fotos || [];
             return pintarFormulario(res, {
                 receta: paraElFormulario(resultado.receta),
-                errores: req.errorFoto ? [req.errorFoto] : resultado.errores,
+                errores: req.errorFotos ? [req.errorFotos] : resultado.errores,
                 modo: 'editar',
                 estado: 400
             });
@@ -273,10 +270,8 @@ module.exports = function (app, gestorDB) {
         if (cederA && cederA !== existente.autor) {
             const cuentas = await gestorDB.obtenerUsuarios({ username: cederA });
             if (cuentas.length === 0) {
-                if (req.file) {
-                    await borrarFoto(req.file.filename);
-                    receta.foto = existente.foto;
-                }
+                await borrarFotos(nombresDe(req.files));
+                receta.fotos = existente.fotos || [];
                 return pintarFormulario(res, {
                     receta: paraElFormulario(receta),
                     errores: ['No hay ninguna cuenta con el usuario "' + cederA + '"'],
@@ -291,10 +286,10 @@ module.exports = function (app, gestorDB) {
 
         await gestorDB.actualizarReceta({ _id: existente._id }, receta);
 
-        //La foto que se deja de usar ya no hace falta
-        if (existente.foto && existente.foto !== receta.foto) {
-            await borrarFoto(existente.foto);
-        }
+        //Las fotos que se dejan de usar ya no hacen falta
+        await borrarFotos((existente.fotos || []).filter(function (foto) {
+            return !receta.fotos.includes(foto);
+        }));
 
         for (const etiqueta of receta.etiquetas) {
             await gestorDB.insertarEtiqueta(etiqueta);
@@ -313,7 +308,7 @@ module.exports = function (app, gestorDB) {
         }
 
         await gestorDB.eliminarReceta({ _id: existente._id });
-        await borrarFoto(existente.foto);
+        await borrarFotos(existente.fotos);
 
         res.redirect('/recetas?mensaje=Receta+borrada&tipoMensaje=alert-success');
     });

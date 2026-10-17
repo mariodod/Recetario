@@ -156,6 +156,15 @@ module.exports = {
     },
 
     /**
+     * Quita un campo de todas las recetas que lo traigan. Para las
+     * migraciones del seed.
+     */
+    quitarCampoDeRecetas: async function (campo) {
+        const resultado = await coleccion('recetas').updateMany({}, { $unset: { [campo]: '' } });
+        return resultado.modifiedCount;
+    },
+
+    /**
      * Devuelve todas las recetas que coinciden con el criterio.
      * Con `opciones` se puede, por ejemplo, reducir los campos devueltos:
      *   obtenerRecetas({}, { projection: { titulo: 1, tiempo: 1 } })

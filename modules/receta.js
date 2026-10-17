@@ -1,5 +1,6 @@
 const { DIFICULTADES, MOMENTOS } = require('./filtros.js');
 const { esVideoValido } = require('./video.js');
+const { MAX_FOTOS } = require('./fotos.js');
 
 /**
  * Receta vacia para pintar el formulario de alta por primera vez.
@@ -15,7 +16,7 @@ function recetaVacia() {
         preparacion: [],
         etiquetas: [],
         video: '',
-        foto: null
+        fotos: []
     };
 }
 
@@ -26,8 +27,8 @@ function recetaVacia() {
  * etiquetas se escriben separadas por comas. Todo se guarda como arrays en
  * minusculas y sin repetidos.
  *
- * `fotoActual` es la foto que ya tenia la receta: se conserva si el
- * formulario no trae una nueva.
+ * `fotosActuales` son las fotos que ya tenia la receta: se conservan si el
+ * formulario no trae ninguna nueva (el formulario decide cuales se quitan).
  *
  * Devuelve { receta, errores }:  la receta siempre se devuelve completa para
  * poder repintar el formulario con lo que ya habia escrito el usuario.
@@ -43,7 +44,7 @@ function parsearReceta(body = {}, opciones = {}) {
     receta.preparacion = lineas(body.preparacion);
     receta.etiquetas = lista(body.etiquetas);
     receta.video = String(body.video || '').trim();
-    receta.foto = opciones.fotoActual || null;
+    receta.fotos = Array.isArray(opciones.fotosActuales) ? opciones.fotosActuales : [];
 
     const errores = [];
 
@@ -73,6 +74,9 @@ function parsearReceta(body = {}, opciones = {}) {
     }
     if (receta.etiquetas.length > 10) {
         errores.push('Puedes poner como maximo 10 etiquetas');
+    }
+    if (receta.fotos.length > MAX_FOTOS) {
+        errores.push('Puedes guardar como maximo ' + MAX_FOTOS + ' fotos por receta');
     }
     if (!esVideoValido(receta.video)) {
         errores.push('El video debe ser un enlace valido, por ejemplo el de YouTube o Vimeo');
