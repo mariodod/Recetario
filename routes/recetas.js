@@ -27,6 +27,36 @@ function paraElFormulario(receta) {
 }
 
 /**
+ * Los comentarios, con el avatar de quien los dejo y la fecha ya escrita
+ * para no pintar el formato crudo de JavaScript.
+ */
+async function decorarComentarios(gestorDB, comentarios) {
+    if (comentarios.length === 0) {
+        return [];
+    }
+
+    const usuarios = await gestorDB.obtenerUsuarios({
+        username: { $in: Array.from(new Set(comentarios.map(function (comentario) {
+            return comentario.usuario;
+        }))) }
+    });
+    const avatares = {};
+    for (const usuario of usuarios) {
+        avatares[usuario.username] = usuario.avatar || null;
+    }
+
+    return comentarios.map(function (comentario) {
+        return Object.assign({}, comentario, {
+            _id: String(comentario._id),
+            avatar: avatares[comentario.usuario] || null,
+            fecha: new Date(comentario.creadaEn).toLocaleDateString('es-ES', {
+                day: 'numeric', month: 'long', year: 'numeric'
+            })
+        });
+    });
+}
+
+/**
  * Solo el autor de una receta puede editarla o borrarla. Las recetas sin
  * autor no las puede tocar nadie.
  */
@@ -137,11 +167,13 @@ module.exports = function (app, gestorDB) {
 
         //Todo esto solo hace falta en la pagina, no en el JSON
         const esPagina = Boolean(req.accepts('html'));
-        const [relacionadas, valoracion, favorita] = await Promise.all([
+        const [relacionadas, valoracion, favorita, comentariosCrudos] = await Promise.all([
             esPagina ? gestorDB.obtenerRecetasRelacionadas(receta, 4) : Promise.resolve([]),
             esPagina ? gestorDB.obtenerValoracion(receta._id, req.session.usuario) : Promise.resolve(null),
-            esPagina ? gestorDB.esFavorito(req.session.usuario, receta._id) : Promise.resolve(false)
+            esPagina ? gestorDB.esFavorito(req.session.usuario, receta._id) : Promise.resolve(false),
+            esPagina ? gestorDB.obtenerComentarios(receta._id) : Promise.resolve([])
         ]);
+        const comentarios = await decorarComentarios(gestorDB, comentariosCrudos);
 
         //Raciones pedidas en la url (?raciones=6):  el factor escala las
         //cantidades de los ingredientes que traigan cantidad
@@ -168,7 +200,8 @@ module.exports = function (app, gestorDB) {
                     valoracion: valoracion,
                     estrellas: [1, 2, 3, 4, 5],
                     esFavorito: favorita,
-                    pasosMarcados: pasosMarcados
+                    pasosMarcados: pasosMarcados,
+                    comentarios: comentarios
                 });
             },
             json: function () { res.json(receta); }
@@ -315,6 +348,7 @@ module.exports = function (app, gestorDB) {
         }
 
         await gestorDB.eliminarReceta({ _id: existente._id });
+        await gestorDB.borrarComentariosDeRecetas([String(existente._id)]);
         await borrarFotos(existente.fotos);
 
         res.redirect('/recetas?mensaje=Receta+borrada&tipoMensaje=alert-success');

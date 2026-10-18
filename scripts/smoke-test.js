@@ -740,6 +740,93 @@ async function main() {
         filtroNuevo.texto.includes('Receta de prueba'));
 
     // ------------------------------------------------------------------
+    // Comentarios en el detalle de la receta
+    // ------------------------------------------------------------------
+    const detalleSinComentar = await anonimo.get('/receta/' + idPrueba);
+    comprobar('quien no esta identificado lo ve dicho en los comentarios',
+        detalleSinComentar.texto.includes('Identifícate para comentar')
+        && detalleSinComentar.texto.includes('Comentarios (0)'));
+
+    const comentarSinSesion = await anonimo.post('/receta/' + idPrueba + '/comentarios', { texto: 'hola' });
+    comprobar('comentar sin sesion redirige al login', comentarSinSesion.status === 302);
+
+    const comentada = await registro.post('/receta/' + idPrueba + '/comentarios', {
+        texto: 'Muy buena, con un poco de comino. <script>malito</script>'
+    });
+    const conUnComentario = await registro.get('/receta/' + idPrueba);
+    comprobar('el comentario se guarda y sale en el detalle, escapado',
+        comentada.status === 302
+        && conUnComentario.texto.includes('Comentarios (1)')
+        && conUnComentario.texto.includes('Muy buena, con un poco de comino.')
+        && !conUnComentario.texto.includes('<script>malito</script>')
+        && conUnComentario.texto.includes('&lt;script&gt;malito&lt;/script&gt;'));
+
+    const comentarioVacio = await registro.post('/receta/' + idPrueba + '/comentarios', { texto: '   ' });
+    const comentarioLargo = await registro.post('/receta/' + idPrueba + '/comentarios', { texto: 'x'.repeat(2001) });
+    comprobar('el comentario vacio o demasiado largo no se guarda',
+        String(comentarioVacio.cabeceras.get('location')).includes('Escribe+algo')
+        && String(comentarioLargo.cabeceras.get('location')).includes('2000')
+        && (await registro.get('/receta/' + idPrueba)).texto.includes('Comentarios (1)'));
+
+    //Otro usuario comentando:  solo su autor o el de la receta pueden borrarlo
+    const comentarOtro = crearNavegador();
+    const otroUsuario = 'coment-' + Date.now();
+    const altaOtro = await comentarOtro.post('/signup', {
+        username: otroUsuario, password: 'clave-de-comentar-1', confirmacion: 'clave-de-comentar-1'
+    });
+    await comentarOtro.post('/receta/' + idPrueba + '/comentarios', { texto: 'Comentario de otro usuario' });
+    //La pagina se mira desde la autora de la receta, que es quien ve los
+    //dos botones de borrar:  el de lo suyo y el de lo ajeno, que puede
+    //limpiar por ser suya.  Quien no puede borrar no ve boton de nada
+    const conDosComentarios = await registro.get('/receta/' + idPrueba);
+    comprobar('otro usuario puede comentar en la receta ajena',
+        altaOtro.status === 302 && conDosComentarios.texto.includes('Comentarios (2)'));
+
+    //Cada boton de borrar lleva el nombre de quien puede pulsarlo
+    const botonesPorAutor = {};
+    for (const coincidencia of conDosComentarios.texto.matchAll(
+        /\/comentario\/([a-f0-9]{24})\/borrar"[\s\S]{0,300}?Borrar el comentario de ([^"]+)"/g)) {
+        botonesPorAutor[coincidencia[2]] = coincidencia[1];
+    }
+    comprobar('cada comentario ofrece borrarlo a su autor y al de la receta',
+        Boolean(botonesPorAutor[otroUsuario]) && Boolean(botonesPorAutor[usuario]));
+
+    const borrarSinPermiso = await comentarOtro.post('/comentario/' + botonesPorAutor[usuario] + '/borrar', {});
+    const sigueElDeLaAutora = await comentarOtro.get('/receta/' + idPrueba);
+    comprobar('nadie mas puede borrar un comentario',
+        String(borrarSinPermiso.cabeceras.get('location')).includes('No+puedes')
+        && sigueElDeLaAutora.texto.includes('Comentarios (2)'));
+
+    const borradoComentarioAjeno = await registro.post('/comentario/' + botonesPorAutor[otroUsuario] + '/borrar', {});
+    const conUnoTrasBorrar = await registro.get('/receta/' + idPrueba);
+    comprobar('el autor de la receta puede borrar comentarios ajenos',
+        borradoComentarioAjeno.status === 302 && conUnoTrasBorrar.texto.includes('Comentarios (1)'));
+
+    await comentarOtro.post('/receta/' + idPrueba + '/comentarios', { texto: 'Otra vez del otro' });
+    const conElOtro = await comentarOtro.get('/receta/' + idPrueba);
+    const idDelOtro = (conElOtro.texto.match(/\/comentario\/([a-f0-9]{24})\/borrar/) || [])[1];
+    const borradoPropio = await comentarOtro.post('/comentario/' + idDelOtro + '/borrar', {});
+    comprobar('cada cual puede borrar su propio comentario',
+        borradoPropio.status === 302
+        && (await comentarOtro.get('/receta/' + idPrueba)).texto.includes('Comentarios (1)'));
+
+    //Borrar la receta se lleva sus comentarios
+    const recetaConComentarios = new FormData();
+    recetaConComentarios.append('titulo', 'Receta de prueba de comentarios');
+    recetaConComentarios.append('tiempo', '10');
+    recetaConComentarios.append('dificultad', 'facil');
+    recetaConComentarios.append('momento', 'cena');
+    recetaConComentarios.append('ingredientes', 'Sal');
+    recetaConComentarios.append('preparacion', 'Se mezcla todo.');
+    const creadaParaComentar = await registro.subir('/receta', recetaConComentarios);
+    const idParaComentar = (creadaParaComentar.cabeceras.get('location') || '').split('?')[0].split('/').pop();
+    await registro.post('/receta/' + idParaComentar + '/comentarios', { texto: 'Adios receta' });
+    const borradaConComentarios = await registro.post('/receta/' + idParaComentar + '/borrar', {});
+    const comentariosHuerfanos = await gestorDB.obtenerComentarios(idParaComentar);
+    comprobar('borrar la receta se lleva sus comentarios',
+        borradaConComentarios.status === 302 && comentariosHuerfanos.length === 0);
+
+    // ------------------------------------------------------------------
     // Edicion y borrado
     // ------------------------------------------------------------------
     const editado = await registro.post('/receta/' + idPrueba, Object.assign(formulario('Receta de prueba (editada)'), {
@@ -1157,6 +1244,11 @@ async function main() {
     comprobar('la cuenta de prueba tiene su receta con foto',
         creadaDeCuenta.status === 302 && Boolean(fotoDeCuenta));
 
+    //Sus comentarios se prueban aqui, que es donde se borra la cuenta:
+    //uno en su propia receta y otro en una ajena que sigue viva
+    await conCuenta.post('/receta/' + idDeCuenta + '/comentarios', { texto: 'Comentario en la receta propia' });
+    await conCuenta.post('/receta/' + idCantidadesExtra + '/comentarios', { texto: 'Comentario en receta ajena' });
+
     const sinContrasena = await conCuenta.post('/cuenta/borrar', { password: '' });
     comprobar('borrar la cuenta pide la contraseña', sinContrasena.status === 400);
 
@@ -1172,6 +1264,11 @@ async function main() {
         && recetaTrasBorrar.status === 404
         && avatarTrasBorrar.status === 404
         && fotoTrasBorrar.status === 404);
+
+    const comentariosDeLaBorrada = await gestorDB.obtenerComentarios(idDeCuenta);
+    const comentariosEnAjena = await gestorDB.obtenerComentarios(idCantidadesExtra);
+    comprobar('borrar la cuenta se lleva sus comentarios',
+        comentariosDeLaBorrada.length === 0 && comentariosEnAjena.length === 0);
 
     const cuentaCerrada = await conCuenta.get('/cuenta');
     comprobar('al borrar la cuenta se cierra la sesion', cuentaCerrada.status === 302);
@@ -1373,12 +1470,15 @@ async function main() {
     for (const receta of dePrueba) {
         await borrarFotos(receta.fotos);
     }
+    await gestorDB.borrarComentariosDeRecetas(dePrueba.map(function (receta) { return String(receta._id); }));
     await gestorDB.eliminarReceta(titulosDePrueba);
     await gestorDB.eliminarReceta({ titulo: 'No deberia guardarse' });
     await gestorDB.borrarFavoritosDe(usuario);
     await gestorDB.borrarValoracionesDe(usuario);
+    await gestorDB.borrarComentariosDe(usuario);
     await gestorDB.borrarFavoritosDe(usuario2);
     await gestorDB.borrarValoracionesDe(usuario2);
+    await gestorDB.borrarComentariosDe(usuario2);
     await gestorDB.borrarEtiqueta(etiquetaNueva);
     await gestorDB.borrarEtiqueta('receta de prueba, con coma');
     await gestorDB.borrarEtiqueta('receta de prueba (editada)');

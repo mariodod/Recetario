@@ -211,11 +211,13 @@ module.exports = function (app, gestorDB) {
         const ids = propias.map(function (receta) { return String(receta._id); });
         if (ids.length > 0) {
             await gestorDB.borrarFavoritosYValoracionesDeRecetas(ids);
+            await gestorDB.borrarComentariosDeRecetas(ids);
         }
         await Promise.all([
             gestorDB.borrarFavoritosDe(usuario.username),
             gestorDB.borrarValoracionesDe(usuario.username),
-            gestorDB.borrarSemanasDe(usuario.username)
+            gestorDB.borrarSemanasDe(usuario.username),
+            gestorDB.borrarComentariosDe(usuario.username)
         ]);
         await gestorDB.borrarUsuario({ username: usuario.username });
         await borrarAvatar(usuario.avatar || null);

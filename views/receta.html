@@ -161,6 +161,46 @@
 {% endif %}
 
 {% if relacionadas.length > 0 %}
+<h2 class="h5 mt-4">Comentarios ({{ comentarios.length }})</h2>
+{% if comentarios.length > 0 %}
+<ul class="list-group mb-4">
+    {% for comentario in comentarios %}
+    <li class="list-group-item">
+        <div class="d-flex align-items-center gap-2 mb-1">
+            {% if comentario.avatar %}
+            <img src="/avatars/{{ comentario.avatar }}" alt="" height="24" class="rounded-circle border" />
+            {% endif %}
+            <a class="fw-semibold text-decoration-none"
+                href="/usuario/{{ comentario.usuario }}">{{ comentario.usuario }}</a>
+            <small class="text-muted">{{ comentario.fecha }}</small>
+            {% if usuario == comentario.usuario or usuario == receta.autor %}
+            <form class="ms-auto m-0" method="POST" action="/comentario/{{ comentario._id }}/borrar">
+                <input type="hidden" name="_csrf" value="{{ csrf }}" />
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" type="submit"
+                    aria-label="Borrar el comentario de {{ comentario.usuario }}">&times;</button>
+            </form>
+            {% endif %}
+        </div>
+        <p class="mb-0" style="white-space: pre-wrap;">{{ comentario.texto }}</p>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% if usuario %}
+<form method="POST" action="/receta/{{ receta._id }}/comentarios" class="mb-4">
+    <input type="hidden" name="_csrf" value="{{ csrf }}" />
+    <div class="mb-2">
+        <label class="form-label" for="comentario">Deja tu comentario</label>
+        <textarea class="form-control" id="comentario" name="texto" rows="3" maxlength="2000" required
+            placeholder="¿Qué tal te ha quedado?"></textarea>
+    </div>
+    <button class="btn btn-primary btn-sm" type="submit">Publicar el comentario</button>
+</form>
+{% else %}
+<p class="text-muted mb-4">Identifícate para comentar esta receta.</p>
+{% endif %}
+
 <h2 class="h5 mt-4">También podría gustarte</h2>
 <ul class="list-group mb-4">
     {% for sugerida in relacionadas %}

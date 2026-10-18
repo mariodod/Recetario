@@ -79,6 +79,9 @@ async function crearIndices() {
         //Una semana del menu por usuario y lunes, tambien sin duplicados
         await db.collection('semanas').createIndex({ usuario: 1, semana: 1 }, { unique: true });
 
+        //Los comentarios se listan por receta, del mas reciente al antiguo
+        await db.collection('comentarios').createIndex({ receta: 1, creadaEn: -1 });
+
         //Busqueda textual sobre titulo, etiquetas, ingredientes y preparacion.
         //El peso decide cuanta mas relevancia tiene un acierto en cada campo y
         //el stemmer en espanol busca por raiz, asi que 'cocinar', 'cocina' y
@@ -314,6 +317,59 @@ module.exports = {
             total: resumen[0] ? resumen[0].total : 0,
             mia: mia ? mia.estrellas : 0
         };
+    },
+
+    /**
+     * Comentarios de una receta, del mas reciente al antiguo y sin pasar
+     * de los ultimos 50:  nadie pasa de ahi leyendo. El id de la receta se
+     * guarda como texto, como en favoritos y valoraciones.
+     */
+    insertarComentario: async function (comentario) {
+        await coleccion('comentarios').insertOne(comentario);
+        return comentario;
+    },
+
+    obtenerComentarios: async function (receta, limite = 50) {
+        return coleccion('comentarios')
+            .find({ receta: String(receta) })
+            .sort({ creadaEn: -1 })
+            .limit(limite)
+            .toArray();
+    },
+
+    obtenerComentario: async function (id) {
+        let oid;
+        try {
+            oid = new ObjectId(id);
+        } catch (err) {
+            return null;
+        }
+        return coleccion('comentarios').findOne({ _id: oid });
+    },
+
+    borrarComentario: async function (id) {
+        let oid;
+        try {
+            oid = new ObjectId(id);
+        } catch (err) {
+            return 0;
+        }
+        const resultado = await coleccion('comentarios').deleteOne({ _id: oid });
+        return resultado.deletedCount;
+    },
+
+    /**
+     * Los comentarios se borran con su receta y con su autor:  se usan al
+     * borrar una receta o una cuenta entera.
+     */
+    borrarComentariosDe: async function (usuario) {
+        const resultado = await coleccion('comentarios').deleteMany({ usuario: usuario });
+        return resultado.deletedCount;
+    },
+
+    borrarComentariosDeRecetas: async function (ids) {
+        const resultado = await coleccion('comentarios').deleteMany({ receta: { $in: ids } });
+        return resultado.deletedCount;
     },
 
     /**
