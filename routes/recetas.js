@@ -150,6 +150,12 @@ module.exports = function (app, gestorDB) {
             return { nombre: nombre, texto: escalar(nombre, factor) };
         });
 
+        //Pasos marcados en la sesion:  para cocinar sin perderte por donde vas
+        const pasosMarcados = {};
+        for (const paso of (req.session.pasos || {})[String(receta._id)] || []) {
+            pasosMarcados[paso] = true;
+        }
+
         res.format({
             html: function () {
                 res.render('receta.html', {
@@ -160,7 +166,8 @@ module.exports = function (app, gestorDB) {
                     raciones: raciones,
                     valoracion: valoracion,
                     estrellas: [1, 2, 3, 4, 5],
-                    esFavorito: favorita
+                    esFavorito: favorita,
+                    pasosMarcados: pasosMarcados
                 });
             },
             json: function () { res.json(receta); }
@@ -363,5 +370,38 @@ module.exports = function (app, gestorDB) {
 
         await gestorDB.guardarValoracion(req.session.usuario, receta._id, estrellas);
         res.redirect('/receta/' + receta._id + '?mensaje=Valoracion+guardada&tipoMensaje=alert-success');
+    });
+
+    /**
+     * Pasos marcados de la preparacion, para ir cocinando sin perderte por
+     * donde vas. Van en la sesion, como las marcas de la lista de la compra:
+     * cada navegador guarda los suyos y solo se aceptan numeros de paso que
+     * existan en la receta. Lo que se envia sustituye a lo guardado para
+     * ESTA receta, asi que desmarcar tambien funciona.
+     */
+    app.post('/receta/:id/pasos', async function (req, res) {
+        const receta = await gestorDB.obtenerRecetaPorId(req.params.id);
+        if (!receta) {
+            return noExiste(res);
+        }
+
+        const ultima = (receta.preparacion || []).length;
+        const validos = [];
+        for (const crudo of [].concat(req.body.paso || [])) {
+            const numero = parseInt(crudo, 10);
+            if (Number.isFinite(numero) && numero >= 0 && numero < ultima && !validos.includes(numero)) {
+                validos.push(numero);
+            }
+        }
+
+        const pasos = req.session.pasos || {};
+        if (validos.length) {
+            pasos[String(receta._id)] = validos.sort(function (a, b) { return a - b; });
+        } else {
+            delete pasos[String(receta._id)];
+        }
+        req.session.pasos = pasos;
+
+        res.redirect('/receta/' + receta._id);
     });
 };

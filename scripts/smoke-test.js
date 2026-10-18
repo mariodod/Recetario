@@ -542,6 +542,48 @@ async function main() {
         !sinBasura.texto.includes('etc/passwd')
         && (sinBasura.texto.match(/checked/g) || []).length === 0);
 
+    // ------------------------------------------------------------------
+    // Los pasos marcados de la preparacion se guardan en la sesion
+    // ------------------------------------------------------------------
+    const recetaPasos = await anonimo.get('/receta/' + idPrueba);
+    comprobar('el detalle deja marcar cada paso de la preparacion',
+        recetaPasos.texto.includes('action="/receta/' + idPrueba + '/pasos"')
+        && (recetaPasos.texto.match(/name="paso"/g) || []).length === 2);
+    comprobar('al entrar en la receta ningun paso esta marcado',
+        (recetaPasos.texto.match(/checked/g) || []).length === 0);
+
+    const dosPasos = new URLSearchParams();
+    dosPasos.append('paso', '0');
+    dosPasos.append('paso', '1');
+    const guardados = await anonimo.post('/receta/' + idPrueba + '/pasos', dosPasos);
+    comprobar('guardar los pasos vuelve a la receta',
+        guardados.status === 302 && guardados.cabeceras.get('location') === '/receta/' + idPrueba);
+
+    const conPasos = await anonimo.get('/receta/' + idPrueba);
+    comprobar('los pasos guardados salen marcados y tachados',
+        (conPasos.texto.match(/checked/g) || []).length === 2
+        && (conPasos.texto.match(/text-decoration-line-through/g) || []).length === 2);
+
+    const unSoloPaso = new URLSearchParams();
+    unSoloPaso.append('paso', '1');
+    await anonimo.post('/receta/' + idPrueba + '/pasos', unSoloPaso);
+    const conUnPaso = await anonimo.get('/receta/' + idPrueba);
+    comprobar('guardar solo un paso desmarca los demas',
+        (conUnPaso.texto.match(/checked/g) || []).length === 1
+        && casillaMarcada(conUnPaso.texto, '1'));
+
+    const mezclaPasos = new URLSearchParams();
+    mezclaPasos.append('paso', '99');
+    mezclaPasos.append('paso', '0');
+    await anonimo.post('/receta/' + idPrueba + '/pasos', mezclaPasos);
+    const sinPasosDeMas = await anonimo.get('/receta/' + idPrueba);
+    comprobar('un paso inexistente no se guarda ni estropea los demas',
+        (sinPasosDeMas.texto.match(/checked/g) || []).length === 1
+        && casillaMarcada(sinPasosDeMas.texto, '0') && !casillaMarcada(sinPasosDeMas.texto, '1'));
+
+    const pasosInexistentes = await anonimo.post('/receta/id-invalido/pasos', { paso: '0' });
+    comprobar('marcar pasos de una receta inexistente responde 404', pasosInexistentes.status === 404);
+
     const favoritoSinSesion = await anonimo.post('/receta/' + idCantidades + '/favorito', null);
     comprobar('guardar en favoritos exige identificarse', favoritoSinSesion.status === 302);
 
