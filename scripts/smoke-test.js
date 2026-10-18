@@ -5,14 +5,20 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 require('dotenv').config();
 
-const BASE = 'http://localhost:8081';
+//Puerto propio y saltable:  la prueba arranca su propio servidor (abajo) y
+//asi un reinicio del npm run dev de desarrollo no la puede cortar. El puerto
+//cambia en cada corrida para no chocar con ningun servidor huérfano.
+const PUERTO_PRUEBAS = 8090 + (Date.now() % 90);
+const BASE = 'http://localhost:' + PUERTO_PRUEBAS;
 const DB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario';
 const gestorDB = require('../modules/gestorDB.js');
 const { MongoClient } = require('mongodb');
 const { extraerFiltros, consultaDeFiltros } = require('../modules/filtros.js');
-const { CARPETA, borrarFotos, borrarAvatar } = require('../modules/fotos.js');
+const { CARPETA, borrarFotos, borrarAvatar, CARPETA_AVATARES } = require('../modules/fotos.js');
+const sharp = require('sharp');
 const { migrar } = require('../scripts/seed.js');
 const { lunesDe, diasDeSemana, sumarDias } = require('../modules/semana.js');
 
@@ -108,7 +114,29 @@ function formulario(titulo) {
     };
 }
 
+//El servidor de las pruebas es hijo de este script, en un puerto propio
+let servidorDePruebas = null;
+
 async function main() {
+    servidorDePruebas = spawn(process.execPath, [path.join(__dirname, '..', 'app.js')], {
+        env: Object.assign({}, process.env, { PORT: String(PUERTO_PRUEBAS) }),
+        stdio: 'ignore'
+    });
+
+    //Se espera a que responda antes de empezar (arranque frio, con la base)
+    let listo = false;
+    for (let intento = 0; intento < 80 && !listo; intento++) {
+        try {
+            await fetch(BASE + '/');
+            listo = true;
+        } catch (e) {
+            await new Promise(function (resolve) { setTimeout(resolve, 250); });
+        }
+    }
+    if (!listo) {
+        throw new Error('No ha arrancado el servidor de pruebas en el puerto ' + PUERTO_PRUEBAS);
+    }
+
     const anonimo = crearNavegador();
 
     // ------------------------------------------------------------------
@@ -820,6 +848,58 @@ async function main() {
     comprobar('solo se aceptan imagenes', archivoMalo.status === 400
         && archivoMalo.texto.includes('JPEG, PNG, WEBP o GIF'));
 
+    // ------------------------------------------------------------------
+    // Las fotos se reducen al subirlas y se les quita el EXIF
+    // ------------------------------------------------------------------
+    const fotoGrande = await sharp({
+        create: { width: 2400, height: 1800, channels: 3, background: '#a33' }
+    }).jpeg().toBuffer();
+    const fotoConExif = await sharp({
+        create: { width: 300, height: 200, channels: 3, background: '#3a3' }
+    }).jpeg().withMetadata({ exif: { IFD0: { Copyright: 'ReceMario' } } }).toBuffer();
+    const gifPequeno = await sharp({
+        create: { width: 40, height: 30, channels: 3, background: '#33a' }
+    }).gif().toBuffer();
+
+    const subidaReducida = new FormData();
+    subidaReducida.append('titulo', 'Receta con foto grande');
+    subidaReducida.append('tiempo', '15');
+    subidaReducida.append('dificultad', 'facil');
+    subidaReducida.append('momento', 'cena');
+    subidaReducida.append('ingredientes', 'Huevo');
+    subidaReducida.append('preparacion', 'Se hace en un minuto.');
+    subidaReducida.append('fotos', new Blob([fotoGrande], { type: 'image/jpeg' }), 'grande.jpg');
+    subidaReducida.append('fotos', new Blob([fotoConExif], { type: 'image/jpeg' }), 'exif.jpg');
+    subidaReducida.append('fotos', new Blob([gifPequeno], { type: 'image/gif' }), 'animado.gif');
+    const creadaReducida = await registro.subir('/receta', subidaReducida);
+    const idReducida = (creadaReducida.cabeceras.get('location') || '').split('?')[0].split('/').pop();
+    const detalleReducida = await registro.get('/receta/' + idReducida);
+    //Solo la galeria propia:  lo de "También podría gustarte" trae miniaturas
+    //y cada foto aparece dos veces (enlace e imagen)
+    const galeria = detalleReducida.texto.split('También podría gustarte')[0];
+    const nombresGrandes = Array.from(new Set(
+        Array.from(galeria.matchAll(/\/fotos\/([a-f0-9]+\.jpg)/g))
+            .map(function (coincidencia) { return coincidencia[1]; })
+    ));
+    const nombreGif = (galeria.match(/\/fotos\/([a-f0-9]+\.gif)/) || [])[1];
+
+    const metadatosFotos = await Promise.all(nombresGrandes.map(function (nombre) {
+        return sharp(path.join(CARPETA, nombre)).metadata();
+    }));
+    comprobar('la foto gigante se reduce al subirla',
+        creadaReducida.status === 302
+        && nombresGrandes.length === 2
+        && metadatosFotos[0].width <= 1600 && metadatosFotos[0].height <= 1600,
+        JSON.stringify(metadatosFotos.map(function (m) { return [m.width, m.height]; })));
+    comprobar('a las fotos se les quita la informacion EXIF',
+        Boolean(metadatosFotos[1]) && metadatosFotos[1].exif === undefined);
+
+    const gifGuardado = nombreGif
+        ? await sharp(path.join(CARPETA, nombreGif)).metadata()
+        : null;
+    comprobar('el GIF se queda como viene, para no perder la animacion',
+        Boolean(gifGuardado) && gifGuardado.format === 'gif' && gifGuardado.width === 40);
+
     const borrada = await registro.post('/receta/' + idConFoto + '/borrar', null);
     comprobar('una receta se puede borrar', borrada.status === 302);
     comprobar('al borrar la receta desaparecen sus fotos del disco',
@@ -934,9 +1014,12 @@ async function main() {
     const bioLarga = await conCuenta.post('/cuenta', { bio: 'x'.repeat(501) });
     comprobar('la descripcion que pasa del limite se rechaza', bioLarga.status === 400);
 
+    const avatarGrande = await sharp({
+        create: { width: 900, height: 600, channels: 3, background: '#393' }
+    }).png().withMetadata({ exif: { IFD0: { Copyright: 'ReceMario' } } }).toBuffer();
     const subidaAvatar = new FormData();
     subidaAvatar.append('bio', bioGuardada);
-    subidaAvatar.append('avatar', new Blob([PNG], { type: 'image/png' }), 'avatar.png');
+    subidaAvatar.append('avatar', new Blob([avatarGrande], { type: 'image/png' }), 'avatar.png');
     const conFotoDePerfil = await conCuenta.subir('/cuenta', subidaAvatar);
     comprobar('la foto de perfil se guarda', conFotoDePerfil.status === 302);
 
@@ -947,6 +1030,17 @@ async function main() {
         Boolean(nombreAvatar)
         && perfilAvatar.texto.includes('/avatars/' + nombreAvatar)
         && barraConAvatar.texto.includes('/avatars/' + nombreAvatar));
+
+    const metadatosAvatar = nombreAvatar
+        ? await sharp(path.join(CARPETA_AVATARES, nombreAvatar)).metadata()
+        : null;
+    comprobar('el avatar sale cuadrado y sin datos EXIF',
+        Boolean(metadatosAvatar)
+        && metadatosAvatar.width === 512 && metadatosAvatar.height === 512
+        && metadatosAvatar.exif === undefined,
+        metadatosAvatar
+            ? metadatosAvatar.width + 'x' + metadatosAvatar.height + ' exif:' + Boolean(metadatosAvatar.exif)
+            : 'sin avatar en disco');
 
     const imagenAvatar = await anonimo.get('/avatars/' + nombreAvatar);
     comprobar('el avatar se sirve como fichero estatico', imagenAvatar.status === 200);
@@ -1145,12 +1239,14 @@ async function main() {
     await gestorDB.borrarSemanasDe(usuario);
 
     await gestorDB.close();
+    servidorDePruebas.kill();
 
     console.log(`\n${comprobaciones} comprobaciones, ${fallos} fallos`);
     process.exit(fallos ? 1 : 0);
 }
 
 main().catch(function (err) {
+    if (servidorDePruebas) servidorDePruebas.kill();
     console.error('ERROR', err);
     process.exit(1);
 });
