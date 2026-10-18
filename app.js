@@ -3,6 +3,7 @@ require('dotenv').config();
 const path = require('node:path');
 const express = require('express');
 const expressSession = require('express-session');
+const { MongoStore } = require('connect-mongo');
 const nunjucks = require('nunjucks');
 const gestorDB = require('./modules/gestorDB.js');
 const requiereSesion = require('./modules/autenticacion.js');
@@ -32,6 +33,12 @@ app.use(expressSession({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    //Las sesiones se guardan en MongoDB:  aguantan reinicios del servidor
+    //y caducan solas a la vez que la cookie
+    store: MongoStore.create({
+        mongoUrl: DB_URI,
+        ttl: 7 * 24 * 60 * 60 //segundos
+    }),
     cookie: {
         httpOnly: true,
         sameSite: 'lax',

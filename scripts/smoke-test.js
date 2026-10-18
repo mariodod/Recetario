@@ -5,8 +5,12 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+require('dotenv').config();
+
 const BASE = 'http://localhost:8081';
+const DB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario';
 const gestorDB = require('../modules/gestorDB.js');
+const { MongoClient } = require('mongodb');
 const { extraerFiltros, consultaDeFiltros } = require('../modules/filtros.js');
 const { CARPETA, borrarFotos } = require('../modules/fotos.js');
 
@@ -34,6 +38,18 @@ function casillaMarcada(html, clave) {
     if (inicio < 0) return false;
     const fin = html.indexOf('/>', inicio);
     return html.slice(inicio, fin < 0 ? inicio + 300 : fin).includes('checked');
+}
+
+/**
+ * La sesion guardada en MongoDB es un texto JSON:  aqui se devuelve ya
+ * parseada (o null si no viniera en formato).
+ */
+function sesionDe(guardada) {
+    try {
+        return typeof guardada.session === 'string' ? JSON.parse(guardada.session) : guardada.session;
+    } catch (e) {
+        return null;
+    }
 }
 
 /**
@@ -185,8 +201,15 @@ async function main() {
     // ------------------------------------------------------------------
     // Detalle de receta (HTML, JSON, pasos y video)
     // ------------------------------------------------------------------
-    gestorDB.init(process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario');
+    gestorDB.init(DB_URI);
     await gestorDB.connect();
+
+    //Las sesiones de pruebas anteriores se borran:  al final se comprueba
+    //que las de esta acaban guardadas en MongoDB
+    const clienteSesiones = new MongoClient(DB_URI);
+    await clienteSesiones.connect();
+    await clienteSesiones.db().collection('sessions').deleteMany({});
+
     const recetas = await gestorDB.obtenerRecetas({});
     const id = String(recetas[0]._id);
 
@@ -748,6 +771,22 @@ async function main() {
 
     const privado = await anonimo.get('/privado/algo');
     comprobar('lo que cuelga de /privado sigue protegido', privado.status === 302);
+
+    // ------------------------------------------------------------------
+    // Las sesiones viven en MongoDB, no solo en la memoria del servidor
+    // ------------------------------------------------------------------
+    const sesionesGuardadas = await clienteSesiones.db().collection('sessions').find({}).toArray();
+    await clienteSesiones.close();
+    comprobar('las sesiones se guardan en la base de datos',
+        sesionesGuardadas.length > 0 && sesionesGuardadas.some(function (guardada) {
+            const sesion = sesionDe(guardada);
+            return sesion && sesion.usuario === usuario;
+        }));
+    comprobar('la sesion tambien guarda las marcas de la lista',
+        sesionesGuardadas.some(function (guardada) {
+            const sesion = sesionDe(guardada);
+            return sesion && Array.isArray(sesion.marcados);
+        }));
 
     // ------------------------------------------------------------------
     // Limpieza de los datos creados por esta prueba
