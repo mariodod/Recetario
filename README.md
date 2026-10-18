@@ -63,7 +63,9 @@ se ha migrado:
   ingrediente se puede marcar como comprado:  las marcas se guardan en la
   sesion de cada navegador, asi que aguantan al recargar o volver otro dia,
   mientras que las recetas elegidas siguen yendo en la url para compartir la
-  lista tal cual.
+  lista tal cual. La misma lista se descarga en texto plano (?formato=txt,
+  con una casilla por ingrediente) y la pagina se imprime limpia con Ctrl+P:
+  se van la barra y los botones y queda solo la lista.
 - **Favoritos**:  el detalle guarda o quita una receta con la estrella y
   `/mis-recetas` las junta con las que has creado tu.
 - **Valoraciones**:  de 1 a 5 estrellas, una por usuario y receta; el detalle
@@ -162,8 +164,8 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
    permisos de autor, cesion de autoría y filtro por autor, etiquetas con
    comas, subida y quitado de fotos, incrustacion de videos, escape de HTML,
-   raciones, lista de la compra y sus marcas, favoritos y valoraciones, y que
-   las sesiones se guardan en MongoDB.
+   raciones, lista de la compra, su descarga en .txt y sus marcas, favoritos y
+   valoraciones, y que las sesiones se guardan en MongoDB.
    Los datos que crea la prueba se borran al terminar.
 
 ## Rutas
@@ -177,7 +179,7 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 | `GET /receta/:id/editar` | Formulario de edicion, relleno (requiere sesion) |
 | `POST /receta/:id` | Guarda los cambios y, si se pide, cede la autoría (requiere ser el autor) |
 | `POST /receta/:id/borrar` | Borra la receta y sus fotos (requiere sesion) |
-| `GET /lista` | Lista de la compra (`recetas=id1,id2`) |
+| `GET /lista` | Lista de la compra (`recetas=id1,id2`; `formato=txt` la descarga) |
 | `POST /lista/marcar` | Guarda en la sesion las marcas de los ingredientes |
 | `POST /lista/vaciar` | Quita todas las marcas |
 | `POST /receta/:id/favorito` | Guarda o quita la receta de favoritos (requiere sesion) |
