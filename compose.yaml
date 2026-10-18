@@ -1,0 +1,36 @@
+# Pila completa:  mongo + la app construida.
+#
+#   docker compose up -d --build                       # app en http://localhost:8082
+#   docker compose run --rm app node scripts/seed.js   # datos de ejemplo, una vez
+#   docker compose down -v                             # para y borra los volumenes
+#
+# Sin puertos expuestos para mongo ni para el 8081:  no se cuela en la base
+# de desarrollo (recetario-mongo) ni en el servidor de `npm run dev`.
+services:
+  mongo:
+    image: mongo:8
+    volumes:
+      - datos-mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "8082:8081"
+    environment:
+      # Dentro de la red de compose la base de datos se llama "mongo"
+      MONGODB_URI: mongodb://mongo:27017/recetario
+      # Si expones el servicio, pon aqui tu SESSION_SECRET (o en un .env)
+    volumes:
+      - fotos:/app/public/fotos
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  datos-mongo:
+  fotos:
