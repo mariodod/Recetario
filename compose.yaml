@@ -27,6 +27,7 @@ services:
       # Si expones el servicio, pon aqui tu SESSION_SECRET (o en un .env)
     volumes:
       - fotos:/app/public/fotos
+      - avatares:/app/public/avatars
     depends_on:
       mongo:
         condition: service_healthy
@@ -34,3 +35,4 @@ services:
 volumes:
   datos-mongo:
   fotos:
+  avatares:

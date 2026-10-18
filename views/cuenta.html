@@ -1,0 +1,104 @@
+<!-- https://mozilla.github.io/nunjucks/ -->
+{% extends "base.html" %}
+
+{% block titulo %}Mi cuenta{% endblock %}
+
+{% block contenido %}
+<h1>Mi cuenta</h1>
+
+<div class="row g-4 mb-4">
+    <!-- Perfil visible para los demas -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Tu perfil</div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Lo ven los demás en
+                    <a href="/usuario/{{ perfil.username }}">/usuario/{{ perfil.username }}</a>.
+                </p>
+
+                {% if perfil.avatar %}
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <img src="/avatars/{{ perfil.avatar }}" alt="" height="64" class="rounded-circle border" />
+                    <span class="text-muted small">Foto de perfil actual</span>
+                </div>
+                {% endif %}
+
+                <form method="POST" action="/cuenta" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label" for="bio">Descripcion</label>
+                        <textarea class="form-control" id="bio" name="bio" rows="3"
+                            maxlength="500" placeholder="Cocino poco pero me encanta la reposteria.">{{ bio }}</textarea>
+                        <div class="form-text">Hasta 500 caracteres.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="avatar">Foto de perfil</label>
+                        <input class="form-control" type="file" id="avatar" name="avatar"
+                            accept="image/jpeg,image/png,image/webp,image/gif" />
+                        <div class="form-text">JPEG, PNG, WEBP o GIF, de hasta 2 MB.</div>
+                    </div>
+                    <button class="btn btn-primary" type="submit">Guardar el perfil</button>
+                </form>
+
+                {% if error %}
+                <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Contrasena -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Tu contraseña</div>
+            <div class="card-body">
+                <form method="POST" action="/cuenta/password">
+                    <div class="mb-3">
+                        <label class="form-label" for="actual">Contraseña actual</label>
+                        <input class="form-control" type="password" id="actual" name="actual" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="nueva">Contraseña nueva</label>
+                        <input class="form-control" type="password" id="nueva" name="nueva" minlength="6" required />
+                        <div class="form-text">Al menos 6 caracteres.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="confirmacion">Repite la contraseña nueva</label>
+                        <input class="form-control" type="password" id="confirmacion" name="confirmacion" required />
+                    </div>
+                    <button class="btn btn-primary" type="submit">Cambiar la contraseña</button>
+                </form>
+
+                {% if errorPassword %}
+                <div class="alert alert-danger mt-3 mb-0" role="alert">{{ errorPassword }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Zona de peligro -->
+<div class="card border-danger mb-4">
+    <div class="card-header text-danger">Zona de peligro</div>
+    <div class="card-body">
+        <p class="card-text">
+            Al borrar la cuenta se eliminan también tus
+            {{ nRecetas }} {% if nRecetas == 1 %}receta{% else %}recetas{% endif %}
+            con sus fotos, tus favoritos, tus valoraciones, tu menú semanal y tu
+            foto de perfil. No se puede deshacer.
+        </p>
+        <form method="POST" action="/cuenta/borrar" class="row g-2 align-items-end">
+            <div class="col-sm-6">
+                <label class="form-label" for="borrar-password">Escribe tu contraseña para confirmar</label>
+                <input class="form-control" type="password" id="borrar-password" name="password" required />
+            </div>
+            <div class="col-sm-6 d-grid">
+                <button class="btn btn-outline-danger" type="submit">Borrar mi cuenta</button>
+            </div>
+        </form>
+        {% if errorBorrado %}
+        <div class="alert alert-danger mt-3 mb-0" role="alert">{{ errorBorrado }}</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

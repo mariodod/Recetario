@@ -49,7 +49,15 @@
                 <ul class="navbar-nav">
                     {% if usuario %}
                     <li class="nav-item"><a class="nav-link" href="/mis-recetas">Mis recetas</a></li>
-                    <li class="nav-item"><span class="navbar-text me-3">{{ usuario }}</span></li>
+                    <li class="nav-item"><a class="nav-link" href="/semana">Semana</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-1" href="/usuario/{{ usuario }}">
+                            {% if avatar %}
+                            <img src="/avatars/{{ avatar }}" alt="" height="24" class="rounded-circle border border-light flex-shrink-0" />
+                            {% endif %}
+                            {{ usuario }}
+                        </a>
+                    </li>
                     <li class="nav-item"><a class="nav-link" href="/logout">Cerrar sesión</a></li>
                     {% else %}
                     <li class="nav-item"><a class="nav-link" href="/login">Identifícate</a></li>

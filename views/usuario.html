@@ -1,0 +1,80 @@
+<!-- https://mozilla.github.io/nunjucks/ -->
+{% extends "base.html" %}
+
+{% block titulo %}{{ perfil.username }}{% endblock %}
+
+{% block contenido %}
+<h1 class="d-flex align-items-center gap-2 flex-wrap">
+    {% if perfil.avatar %}
+    <img src="/avatars/{{ perfil.avatar }}" alt="" height="48" class="rounded-circle border flex-shrink-0" />
+    {% endif %}
+    {{ perfil.username }}
+    {% if esPropio %}
+    <a class="btn btn-sm btn-outline-secondary ms-auto" href="/cuenta">Editar perfil y cuenta</a>
+    {% endif %}
+</h1>
+
+{% if perfil.bio %}
+<p>{{ perfil.bio }}</p>
+{% else %}
+<p class="text-muted">Sin descripcion todavia.</p>
+{% endif %}
+
+<p class="text-muted">
+    {% if perfil.creadaEn %}Miembro desde {{ perfil.creadaEn }} &middot; {% endif %}
+    <span class="badge bg-secondary">{{ total }} recetas</span>
+</p>
+
+<h2 class="h4 mt-4">Recetas de {{ perfil.username }}</h2>
+{% if recetas.length == 0 %}
+<div class="alert alert-info">Todavia no ha publicado ninguna receta.</div>
+{% else %}
+<ul class="list-group mb-3">
+    {% for receta in recetas %}
+    <li class="list-group-item d-flex align-items-center gap-2">
+        {% if receta.fotos.length > 0 %}
+        <img src="/fotos/{{ receta.fotos[0] }}" alt="" height="48" class="rounded border flex-shrink-0" />
+        {% endif %}
+        <a href="/receta/{{ receta._id }}">{{ receta.titulo }}</a>
+        {% if receta.tiempo %}
+        <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
+        {% endif %}
+        {% if receta.dificultad %}
+        <span class="badge bg-light text-dark border">{{ receta.dificultad }}</span>
+        {% endif %}
+        {% for etiqueta in receta.etiquetas %}
+        <span class="badge bg-info text-dark">{{ etiqueta }}</span>
+        {% endfor %}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
+
+{% block paginacion %}
+{% if pgUltima > 1 %}
+<nav aria-label="Paginación del perfil">
+    <ul class="pagination">
+        <li class="page-item {% if pgActual == 1 %}disabled{% endif %}">
+            <a class="page-link" href="/usuario/{{ perfil.username }}?pg=1">Primera</a>
+        </li>
+        {% if pgActual - 1 >= 1 %}
+        <li class="page-item">
+            <a class="page-link" href="/usuario/{{ perfil.username }}?pg={{ pgActual - 1 }}">{{ pgActual - 1 }}</a>
+        </li>
+        {% endif %}
+        <li class="page-item active">
+            <a class="page-link" href="/usuario/{{ perfil.username }}?pg={{ pgActual }}">{{ pgActual }}</a>
+        </li>
+        {% if pgActual + 1 <= pgUltima %}
+        <li class="page-item">
+            <a class="page-link" href="/usuario/{{ perfil.username }}?pg={{ pgActual + 1 }}">{{ pgActual + 1 }}</a>
+        </li>
+        {% endif %}
+        <li class="page-item {% if pgActual == pgUltima %}disabled{% endif %}">
+            <a class="page-link" href="/usuario/{{ perfil.username }}?pg={{ pgUltima }}">Última</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

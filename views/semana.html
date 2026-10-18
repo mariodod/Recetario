@@ -1,0 +1,92 @@
+<!-- https://mozilla.github.io/nunjucks/ -->
+{% extends "base.html" %}
+
+{% block titulo %}Menú de la semana{% endblock %}
+
+{% block contenido %}
+<h1>Menú de la semana</h1>
+<p class="text-muted">{{ etiqueta }}</p>
+
+<p class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <a class="btn btn-sm btn-outline-secondary" href="/semana?sem={{ anterior }}">&larr; Semana anterior</a>
+    {% if not esActual %}
+    <a class="btn btn-sm btn-outline-secondary" href="/semana">Esta semana</a>
+    {% endif %}
+    <a class="btn btn-sm btn-outline-secondary" href="/semana?sem={{ siguiente }}">Semana siguiente &rarr;</a>
+    {% if listaHref %}
+    <a class="btn btn-sm btn-primary" href="{{ listaHref }}">Lista de la compra de la semana</a>
+    {% endif %}
+</p>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <form method="POST" action="/semana/rellenar">
+        <input type="hidden" name="sem" value="{{ semana }}" />
+        <button class="btn btn-outline-primary" type="submit">Rellenar los huecos con recetas al azar</button>
+    </form>
+    <form method="POST" action="/semana/vaciar">
+        <input type="hidden" name="sem" value="{{ semana }}" />
+        <button class="btn btn-outline-danger" type="submit">Vaciar la semana</button>
+    </form>
+</div>
+
+<div class="table-responsive mb-4">
+    <table class="table table-bordered align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Día</th>
+                {% for momento in momentos %}
+                <th scope="col">{{ momento.etiqueta }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for dia in dias %}
+            <tr>
+                <th scope="row" class="text-nowrap">{{ dia.nombre }}
+                    <span class="text-muted fw-normal">{{ dia.fecha }}</span>
+                </th>
+                {% for momento in momentos %}
+                <td>
+                    {% for receta in celdas[dia.clave][momento.valor] %}
+                    <div class="d-flex align-items-center gap-1 mb-1">
+                        <a href="/receta/{{ receta._id }}" class="small text-truncate">{{ receta.titulo }}</a>
+                        <form method="POST" action="/semana/quitar" class="m-0 flex-shrink-0">
+                            <input type="hidden" name="sem" value="{{ semana }}" />
+                            <input type="hidden" name="dia" value="{{ dia.clave }}" />
+                            <input type="hidden" name="momento" value="{{ momento.valor }}" />
+                            <input type="hidden" name="receta" value="{{ receta._id }}" />
+                            <button class="btn btn-sm btn-outline-danger py-0 px-1" type="submit"
+                                aria-label="Quitar {{ receta.titulo }} del menú">&times;</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+
+                    {% if opcionesPorMomento[momento.valor].length > 0 %}
+                    <form method="POST" action="/semana/anadir" class="d-flex gap-1 mt-1">
+                        <input type="hidden" name="sem" value="{{ semana }}" />
+                        <input type="hidden" name="dia" value="{{ dia.clave }}" />
+                        <input type="hidden" name="momento" value="{{ momento.valor }}" />
+                        <select class="form-select form-select-sm" name="receta"
+                            aria-label="Recetas de {{ momento.etiqueta|lower }} para {{ dia.nombre }}">
+                            {% for opcion in opcionesPorMomento[momento.valor] %}
+                            <option value="{{ opcion._id }}">{{ opcion.titulo }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-sm btn-outline-primary" type="submit">Añadir</button>
+                    </form>
+                    {% else %}
+                    <small class="text-muted">Sin recetas de {{ momento.etiqueta|lower }}</small>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<p class="text-muted">
+    Cada día tiene sus cuatro momentos. Lo que marques aquí solo lo ves tú;
+    la lista de la compra de la semana es un enlace que puedes compartir.
+</p>
+{% endblock %}

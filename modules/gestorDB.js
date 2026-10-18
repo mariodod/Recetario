@@ -76,6 +76,9 @@ async function crearIndices() {
         await db.collection('favoritos').createIndex({ usuario: 1, receta: 1 }, { unique: true });
         await db.collection('valoraciones').createIndex({ usuario: 1, receta: 1 }, { unique: true });
 
+        //Una semana del menu por usuario y lunes, tambien sin duplicados
+        await db.collection('semanas').createIndex({ usuario: 1, semana: 1 }, { unique: true });
+
         //Busqueda textual sobre titulo, etiquetas, ingredientes y preparacion.
         //El peso decide cuanta mas relevancia tiene un acierto en cada campo y
         //el stemmer en espanol busca por raiz, asi que 'cocinar', 'cocina' y
@@ -265,6 +268,20 @@ module.exports = {
     },
 
     /**
+     * Borra los favoritos y las valoraciones que apunten a esas recetas
+     * (los de los demas usuarios):  se usa al borrar una cuenta con sus
+     * recetas. Devuelve cuantos documentos de cada uno se han ido.
+     */
+    borrarFavoritosYValoracionesDeRecetas: async function (ids) {
+        const criterio = { receta: { $in: ids } };
+        const [favoritos, valoraciones] = await Promise.all([
+            coleccion('favoritos').deleteMany(criterio),
+            coleccion('valoraciones').deleteMany(criterio)
+        ]);
+        return { favoritos: favoritos.deletedCount, valoraciones: valoraciones.deletedCount };
+    },
+
+    /**
      * Guarda la valoracion de un usuario (una sola por receta: la ultima
      * votacion manda).
      */
@@ -412,6 +429,55 @@ module.exports = {
      */
     borrarUsuario: async function (criterio) {
         const resultado = await coleccion('usuarios').deleteMany(criterio);
+        return resultado.deletedCount;
+    },
+
+    /**
+     * Actualiza campos de un usuario (nunca se le pasa la contrasena por
+     * aqui sin haberla hasheado antes en la ruta).
+     */
+    actualizarUsuario: async function (criterio, campos) {
+        const resultado = await coleccion('usuarios').updateOne(criterio, { $set: campos });
+        return resultado.matchedCount;
+    },
+
+    /**
+     * La semana del menu de un usuario (la del lunes dado), o null si aun
+     * no ha montado ninguna.
+     */
+    obtenerSemana: async function (usuario, semana) {
+        return coleccion('semanas').findOne({ usuario: usuario, semana: semana });
+    },
+
+    /**
+     * Guarda (o sustituye) la semana del menu de un usuario. Los platos
+     * llegan ya montados desde la ruta:  { 'YYYY-MM-DD': { comida: [ids] } }.
+     */
+    guardarSemana: async function (usuario, semana, platos) {
+        await coleccion('semanas').updateOne(
+            { usuario: usuario, semana: semana },
+            {
+                $set: { usuario: usuario, semana: semana, platos: platos, actualizadaEn: new Date() },
+                $setOnInsert: { creadaEn: new Date() }
+            },
+            { upsert: true }
+        );
+        return semana;
+    },
+
+    /**
+     * Borra una semana concreta del menu de un usuario.
+     */
+    borrarSemana: async function (usuario, semana) {
+        const resultado = await coleccion('semanas').deleteMany({ usuario: usuario, semana: semana });
+        return resultado.deletedCount;
+    },
+
+    /**
+     * Borra todas las semanas del menu de un usuario (al borrar la cuenta).
+     */
+    borrarSemanasDe: async function (usuario) {
+        const resultado = await coleccion('semanas').deleteMany({ usuario: usuario });
         return resultado.deletedCount;
     }
 };

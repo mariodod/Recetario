@@ -34,6 +34,7 @@ module.exports = function (app, gestorDB) {
         }
 
         req.session.usuario = usuario.username;
+        req.session.avatar = usuario.avatar || null;
         res.redirect('/?mensaje=Bienvenido+' + encodeURIComponent(usuario.username) + '&tipoMensaje=alert-success');
     });
 
@@ -82,6 +83,7 @@ module.exports = function (app, gestorDB) {
         });
 
         req.session.usuario = username;
+        req.session.avatar = null;
         res.redirect('/?mensaje=Cuenta+creada&tipoMensaje=alert-success');
     });
 

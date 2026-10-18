@@ -12,8 +12,9 @@ const DB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario';
 const gestorDB = require('../modules/gestorDB.js');
 const { MongoClient } = require('mongodb');
 const { extraerFiltros, consultaDeFiltros } = require('../modules/filtros.js');
-const { CARPETA, borrarFotos } = require('../modules/fotos.js');
+const { CARPETA, borrarFotos, borrarAvatar } = require('../modules/fotos.js');
 const { migrar } = require('../scripts/seed.js');
+const { lunesDe, diasDeSemana, sumarDias } = require('../modules/semana.js');
 
 //PNG de 1x1 valido, para las pruebas de subida de fotos
 const PNG = Buffer.from(
@@ -901,6 +902,202 @@ async function main() {
         arreglada.autor === 'mario' && arregladaNula.autor === 'mario');
 
     // ------------------------------------------------------------------
+    // Perfil de usuario y edicion (y borrado) de la cuenta
+    // ------------------------------------------------------------------
+    const perfilPropio = await registro.get('/usuario/' + usuario);
+    comprobar('el propio perfil se abre con el boton de editar',
+        perfilPropio.status === 200 && perfilPropio.texto.includes('Editar perfil y cuenta'));
+
+    const perfilAjeno = await anonimo.get('/usuario/' + usuario);
+    comprobar('el perfil ajeno no ofrece editar la cuenta',
+        perfilAjeno.status === 200 && !perfilAjeno.texto.includes('Editar perfil y cuenta'));
+
+    const perfilInexistente = await anonimo.get('/usuario/usuario-que-no-existe');
+    comprobar('un perfil que no existe responde 404', perfilInexistente.status === 404);
+
+    //Cuenta de prueba propia:  se edita y se borra sin tocar a las demas
+    const conCuenta = crearNavegador();
+    const passwordCuenta = 'clave-de-la-cuenta-1';
+    const cuentaPropia = 'cuenta-' + Date.now();
+    const altaCuenta = await conCuenta.post('/signup', {
+        username: cuentaPropia, password: passwordCuenta, confirmacion: passwordCuenta
+    });
+    comprobar('la cuenta de prueba se crea con sesion iniciada', altaCuenta.status === 302);
+
+    const bioGuardada = 'Cocino poco pero me encanta la reposteria.';
+    const guardarBio = await conCuenta.post('/cuenta', { bio: bioGuardada });
+    comprobar('la descripcion de la cuenta se guarda', guardarBio.status === 302);
+
+    const perfilConBio = await conCuenta.get('/usuario/' + cuentaPropia);
+    comprobar('la descripcion sale en el perfil', perfilConBio.texto.includes(bioGuardada));
+
+    const bioLarga = await conCuenta.post('/cuenta', { bio: 'x'.repeat(501) });
+    comprobar('la descripcion que pasa del limite se rechaza', bioLarga.status === 400);
+
+    const subidaAvatar = new FormData();
+    subidaAvatar.append('bio', bioGuardada);
+    subidaAvatar.append('avatar', new Blob([PNG], { type: 'image/png' }), 'avatar.png');
+    const conFotoDePerfil = await conCuenta.subir('/cuenta', subidaAvatar);
+    comprobar('la foto de perfil se guarda', conFotoDePerfil.status === 302);
+
+    const perfilAvatar = await conCuenta.get('/usuario/' + cuentaPropia);
+    const nombreAvatar = (perfilAvatar.texto.match(/\/avatars\/([a-f0-9]+\.png)/) || [])[1];
+    const barraConAvatar = await conCuenta.get('/');
+    comprobar('el avatar sale en el perfil y en la barra de navegacion',
+        Boolean(nombreAvatar)
+        && perfilAvatar.texto.includes('/avatars/' + nombreAvatar)
+        && barraConAvatar.texto.includes('/avatars/' + nombreAvatar));
+
+    const imagenAvatar = await anonimo.get('/avatars/' + nombreAvatar);
+    comprobar('el avatar se sirve como fichero estatico', imagenAvatar.status === 200);
+
+    const avatarMalo = new FormData();
+    avatarMalo.append('avatar', new Blob([Buffer.from('no soy imagen')], { type: 'text/plain' }), 'nota.txt');
+    const subidaAvatarMalo = await conCuenta.subir('/cuenta', avatarMalo);
+    comprobar('un archivo que no es imagen no vale de avatar', subidaAvatarMalo.status === 400);
+
+    const passwordMala = await conCuenta.post('/cuenta/password', {
+        actual: 'no-es-esta', nueva: 'otra-clave-12', confirmacion: 'otra-clave-12'
+    });
+    comprobar('cambiar la contraseña pide la actual', passwordMala.status === 400);
+
+    const passwordNueva = 'clave-nueva-de-la-cuenta-2';
+    const passwordBuena = await conCuenta.post('/cuenta/password', {
+        actual: passwordCuenta, nueva: passwordNueva, confirmacion: passwordNueva
+    });
+    comprobar('la contraseña nueva se guarda', passwordBuena.status === 302);
+
+    const soloLogin = crearNavegador();
+    const loginViejo = await soloLogin.post('/login', { username: cuentaPropia, password: passwordCuenta });
+    const loginNuevo = await soloLogin.post('/login', { username: cuentaPropia, password: passwordNueva });
+    comprobar('con la contraseña nueva se entra y con la vieja no',
+        loginViejo.status === 401 && loginNuevo.status === 302);
+
+    //Una receta con foto, para ver que borrar la cuenta lo lleva todo
+    const recetaDeCuenta = new FormData();
+    recetaDeCuenta.append('titulo', 'Receta de prueba de la cuenta');
+    recetaDeCuenta.append('tiempo', '10');
+    recetaDeCuenta.append('dificultad', 'facil');
+    recetaDeCuenta.append('momento', 'cena');
+    recetaDeCuenta.append('ingredientes', 'Sal');
+    recetaDeCuenta.append('preparacion', 'Se mezcla todo.');
+    recetaDeCuenta.append('fotos', new Blob([PNG], { type: 'image/png' }), 'plato.png');
+    const creadaDeCuenta = await conCuenta.subir('/receta', recetaDeCuenta);
+    const idDeCuenta = (creadaDeCuenta.cabeceras.get('location') || '').split('?')[0].split('/').pop();
+    const detalleDeCuenta = await conCuenta.get('/receta/' + idDeCuenta);
+    const fotoDeCuenta = (detalleDeCuenta.texto.match(/\/fotos\/([a-f0-9]+\.png)/) || [])[1];
+    comprobar('la cuenta de prueba tiene su receta con foto',
+        creadaDeCuenta.status === 302 && Boolean(fotoDeCuenta));
+
+    const sinContrasena = await conCuenta.post('/cuenta/borrar', { password: '' });
+    comprobar('borrar la cuenta pide la contraseña', sinContrasena.status === 400);
+
+    const cuentaBorrada = await conCuenta.post('/cuenta/borrar', { password: passwordNueva });
+    comprobar('con la contraseña correcta la cuenta se borra', cuentaBorrada.status === 302);
+
+    const perfilTrasBorrar = await anonimo.get('/usuario/' + cuentaPropia);
+    const recetaTrasBorrar = await anonimo.get('/receta/' + idDeCuenta);
+    const avatarTrasBorrar = await anonimo.get('/avatars/' + nombreAvatar);
+    const fotoTrasBorrar = await anonimo.get('/fotos/' + fotoDeCuenta);
+    comprobar('borrar la cuenta se lleva sus recetas y sus ficheros',
+        perfilTrasBorrar.status === 404
+        && recetaTrasBorrar.status === 404
+        && avatarTrasBorrar.status === 404
+        && fotoTrasBorrar.status === 404);
+
+    const cuentaCerrada = await conCuenta.get('/cuenta');
+    comprobar('al borrar la cuenta se cierra la sesion', cuentaCerrada.status === 302);
+
+    // ------------------------------------------------------------------
+    // Menu semanal
+    // ------------------------------------------------------------------
+    const semanaSinSesion = await anonimo.get('/semana');
+    comprobar('el menu semanal pide identificarse', semanaSinSesion.status === 302);
+
+    const lunes = lunesDe();
+    const diasSemana = diasDeSemana(lunes);
+    const semanaAbierta = await registro.get('/semana?sem=' + lunes);
+    comprobar('la semana se abre con sus siete dias',
+        semanaAbierta.status === 200
+        && ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+            .every(function (dia) { return semanaAbierta.texto.includes('>' + dia); })
+        && /Del \d+ al \d+ de .+ de \d{4}/.test(semanaAbierta.texto));
+
+    comprobar('los enlaces de semana se mueven de lunes a lunes',
+        semanaAbierta.texto.includes('/semana?sem=' + sumarDias(lunes, -7))
+        && semanaAbierta.texto.includes('/semana?sem=' + sumarDias(lunes, 7)));
+
+    //Recetas con titulo sin signos raros, para poder compararlos con lo que
+    //pinta la lista de la compra
+    const sinSignos = function (receta) { return !/[&<>"']/.test(receta.titulo); };
+    const paraComida = (await gestorDB.obtenerRecetas({ momento: 'comida' })).find(sinSignos);
+    const paraCena = (await gestorDB.obtenerRecetas({ momento: 'cena' })).find(sinSignos);
+
+    const anadidaComida = await registro.post('/semana/anadir', {
+        sem: lunes, dia: diasSemana[0], momento: 'comida', receta: String(paraComida._id)
+    });
+    const conUna = await registro.get('/semana?sem=' + lunes);
+    comprobar('la receta anadida ocupa su hueco de la semana',
+        anadidaComida.status === 302 && (conUna.texto.match(/semana\/quitar/g) || []).length === 1);
+
+    const repetir = await registro.post('/semana/anadir', {
+        sem: lunes, dia: diasSemana[0], momento: 'comida', receta: String(paraComida._id)
+    });
+    const trasRepetir = await registro.get(repetir.cabeceras.get('location'));
+    comprobar('la misma receta no se anade dos veces al mismo hueco',
+        (trasRepetir.texto.match(/semana\/quitar/g) || []).length === 1
+        && trasRepetir.texto.includes('ya esta en ese hueco'));
+
+    const recetaMala = await registro.post('/semana/anadir', {
+        sem: lunes, dia: diasSemana[0], momento: 'comida', receta: 'id-invalido'
+    });
+    const trasRecetaMala = await registro.get(recetaMala.cabeceras.get('location'));
+    comprobar('una receta inexistente no se anade',
+        (trasRecetaMala.texto.match(/semana\/quitar/g) || []).length === 1
+        && trasRecetaMala.texto.includes('Esa receta no existe'));
+
+    const otroDia = await registro.post('/semana/anadir', {
+        sem: lunes, dia: sumarDias(lunes, 7), momento: 'comida', receta: String(paraCena._id)
+    });
+    const trasOtroDia = await registro.get(otroDia.cabeceras.get('location'));
+    comprobar('no se anade a un dia que pertenece a otra semana',
+        (trasOtroDia.texto.match(/semana\/quitar/g) || []).length === 1
+        && trasOtroDia.texto.includes('no pertenece a la semana'));
+
+    const anadidaCena = await registro.post('/semana/anadir', {
+        sem: lunes, dia: diasSemana[1], momento: 'cena', receta: String(paraCena._id)
+    });
+    const conLista = await registro.get('/semana?sem=' + lunes);
+    comprobar('la semana ofrece la lista de la compra con sus platos',
+        anadidaCena.status === 302
+        && conLista.texto.includes('/lista?recetas=' + String(paraComida._id))
+        && conLista.texto.includes('recetas=' + String(paraCena._id)));
+
+    const hrefDeLaLista = (conLista.texto.match(/href="(\/lista\?recetas=[^"]+)"/) || ['', '/lista'])[1];
+    const listaDeLaSemana = await registro.get(hrefDeLaLista.replace(/&amp;/g, '&'));
+    comprobar('la lista de la semana trae los ingredientes de sus platos',
+        listaDeLaSemana.status === 200
+        && listaDeLaSemana.texto.includes(paraComida.titulo)
+        && listaDeLaSemana.texto.includes(paraCena.titulo));
+
+    const rellenar = await registro.post('/semana/rellenar', { sem: lunes });
+    const rellena = await registro.get('/semana?sem=' + lunes);
+    comprobar('rellenar la semana llena los huecos vacios',
+        rellenar.status === 302 && (rellena.texto.match(/semana\/quitar/g) || []).length > 2);
+
+    const vaciar = await registro.post('/semana/vaciar', { sem: lunes });
+    const vacia = await registro.get('/semana?sem=' + lunes);
+    comprobar('vacia la semana entera',
+        vaciar.status === 302 && (vacia.texto.match(/semana\/quitar/g) || []).length === 0);
+
+    const otraSemana = await registro.get('/semana?sem=' + sumarDias(lunes, 7));
+    const semanaRara = await registro.get('/semana?sem=banana');
+    comprobar('se pasa de semana y una fecha escrita raro no rompe',
+        otraSemana.status === 200
+        && (otraSemana.texto.match(/semana\/quitar/g) || []).length === 0
+        && semanaRara.status === 200);
+
+    // ------------------------------------------------------------------
     // Las sesiones viven en MongoDB, no solo en la memoria del servidor
     // ------------------------------------------------------------------
     const sesionesGuardadas = await clienteSesiones.db().collection('sessions').find({}).toArray();
@@ -937,6 +1134,16 @@ async function main() {
     await gestorDB.borrarEtiqueta('receta de prueba (editada)');
     await gestorDB.borrarUsuario({ username: usuario });
     await gestorDB.borrarUsuario({ username: usuario2 });
+
+    //La cuenta de prueba del perfil:  si el borrado fallo a medias, aqui se
+    //acaba de limpiar (el avatar, primero, para no dejarlo en disco)
+    const cuentasDePrueba = await gestorDB.obtenerUsuarios({ username: cuentaPropia });
+    for (const cuentaDePrueba of cuentasDePrueba) {
+        await borrarAvatar(cuentaDePrueba.avatar || null);
+    }
+    await gestorDB.borrarUsuario({ username: cuentaPropia });
+    await gestorDB.borrarSemanasDe(usuario);
+
     await gestorDB.close();
 
     console.log(`\n${comprobaciones} comprobaciones, ${fallos} fallos`);

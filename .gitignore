@@ -63,5 +63,9 @@ typings/
 public/fotos/*
 !public/fotos/.gitkeep
 
+# Avatares de perfil
+public/avatars/*
+!public/avatars/.gitkeep
+
 # next.js build output
 .next

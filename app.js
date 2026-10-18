@@ -50,6 +50,10 @@ app.use(expressSession({
 app.use(function (req, res, next) {
     res.locals.usuario = req.session.usuario || null;
 
+    //La foto de perfil viaja en la sesion:  no hace que tocar la base en
+    //cada peticion solo para pintar la barra de navegacion
+    res.locals.avatar = req.session.avatar || null;
+
     //Avisos que llegan por querystring (?mensaje=...&tipoMensaje=...)
     //tipoMensaje se limita a una lista blanca para no inyectar clases CSS
     res.locals.mensaje = req.query.mensaje || null;
@@ -74,6 +78,8 @@ require("./routes/recetas.js")(app, gestorDB); //(app, gestorDB)
 require("./routes/menu.js")(app, gestorDB); //(app, gestorDB)
 require("./routes/users.js")(app, gestorDB); //(app, gestorDB)
 require("./routes/compra.js")(app, gestorDB); //(app, gestorDB)
+require("./routes/cuenta.js")(app, gestorDB); //(app, gestorDB)
+require("./routes/semana.js")(app, gestorDB); //(app, gestorDB)
 
 /**
  * Metodos de respuesta de express
