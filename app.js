@@ -1,10 +1,12 @@
 require('dotenv').config();
 
 const path = require('node:path');
+const crypto = require('node:crypto');
 const express = require('express');
 const expressSession = require('express-session');
 const { MongoStore } = require('connect-mongo');
 const nunjucks = require('nunjucks');
+const helmet = require('helmet');
 const gestorDB = require('./modules/gestorDB.js');
 const requiereSesion = require('./modules/autenticacion.js');
 const { elegirRecetaDelDia } = require('./modules/recetaDelDia.js');
@@ -24,6 +26,35 @@ nunjucks.configure(path.join(__dirname, 'views'), {
 });
 app.set('view engine', 'html');
 app.set('views', path.join(__dirname, 'views'));
+
+//Cabeceras de seguridad (helmet). La app no tiene ni una linea de
+//javascript propio:  script-src se queda en 'self' y asi se bloquea
+//cualquier inyeccion. Lo que si necesita son la hoja de estilos del CDN,
+//los estilos inline de las plantillas y los iframes de los videos.
+app.disable('x-powered-by');
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            'default-src': ["'self'"],
+            'script-src': ["'self'"],
+            'style-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+            'img-src': ["'self'", 'data:'],
+            'font-src': ["'self'", 'data:'],
+            'frame-src': [
+                'https://www.youtube.com',
+                'https://www.youtube-nocookie.com',
+                'https://player.vimeo.com',
+                'https://vimeo.com'
+            ],
+            'object-src': ["'none'"],
+            'base-uri': ["'self'"],
+            'form-action': ["'self'"],
+            'frame-ancestors': ["'self'"]
+        }
+    },
+    crossOriginEmbedderPolicy: false,
+    referrerPolicy: { policy: 'same-origin' }
+}));
 
 //App.use
 app.use(express.static(path.join(__dirname, 'public')));
@@ -61,6 +92,16 @@ app.use(function (req, res, next) {
     res.locals.tipoMensaje = tiposValidos.includes(req.query.tipoMensaje)
         ? req.query.tipoMensaje
         : 'alert-info';
+
+    //Token CSRF de la sesion:  las plantillas lo esconden en cada formulario
+    //POST y modules/csrf.js lo exige en cada peticion POST. La cookie espejo
+    //solo ayuda a los clientes de programacion (la suite de pruebas); la
+    //validacion se hace contra la sesion, nunca contra la cookie
+    if (!req.session.csrf) {
+        req.session.csrf = crypto.randomBytes(32).toString('hex');
+    }
+    res.locals.csrf = req.session.csrf;
+    res.cookie('csrf', req.session.csrf, { httpOnly: true, sameSite: 'strict' });
     next();
 });
 

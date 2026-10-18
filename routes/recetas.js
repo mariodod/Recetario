@@ -1,4 +1,5 @@
 const requiereSesion = require('../modules/autenticacion.js');
+const csrf = require('../modules/csrf.js');
 const { parsearReceta } = require('../modules/receta.js');
 const { subirFotos, nombresDe, borrarFotos, MAX_FOTOS } = require('../modules/fotos.js');
 const { embeberVideo } = require('../modules/video.js');
@@ -184,7 +185,7 @@ module.exports = function (app, gestorDB) {
         });
     });
 
-    app.post('/receta', requiereSesion, subirFotos, async function (req, res) {
+    app.post('/receta', requiereSesion, subirFotos, csrf, async function (req, res) {
         const resultado = parsearReceta(req.body, { fotosActuales: nombresDe(req.files) });
 
         if (req.errorFotos || resultado.errores.length > 0) {
@@ -230,7 +231,7 @@ module.exports = function (app, gestorDB) {
         await pintarFormulario(res, { receta: paraElFormulario(existente), modo: 'editar' });
     });
 
-    app.post('/receta/:id', requiereSesion, subirFotos, async function (req, res) {
+    app.post('/receta/:id', requiereSesion, subirFotos, csrf, async function (req, res) {
         const existente = await gestorDB.obtenerRecetaPorId(req.params.id);
         if (!existente) {
             await borrarFotos(nombresDe(req.files));
@@ -304,7 +305,7 @@ module.exports = function (app, gestorDB) {
         res.redirect('/receta/' + existente._id + '?mensaje=' + mensaje + '&tipoMensaje=alert-success');
     });
 
-    app.post('/receta/:id/borrar', requiereSesion, async function (req, res) {
+    app.post('/receta/:id/borrar', requiereSesion, csrf, async function (req, res) {
         const existente = await gestorDB.obtenerRecetaPorId(req.params.id);
         if (!existente) {
             return noExiste(res);
@@ -336,7 +337,7 @@ module.exports = function (app, gestorDB) {
     /**
      * Guardar o quitar de favoritos:  mismo boton, un poste de conmutador.
      */
-    app.post('/receta/:id/favorito', requiereSesion, async function (req, res) {
+    app.post('/receta/:id/favorito', requiereSesion, csrf, async function (req, res) {
         const receta = await gestorDB.obtenerRecetaPorId(req.params.id);
         if (!receta) {
             return noExiste(res);
@@ -356,7 +357,7 @@ module.exports = function (app, gestorDB) {
      * Valoracion de una receta:  de 1 a 5 estrellas, una por usuario, la
      * ultima votacion sustituye a la anterior.
      */
-    app.post('/receta/:id/valoracion', requiereSesion, async function (req, res) {
+    app.post('/receta/:id/valoracion', requiereSesion, csrf, async function (req, res) {
         const receta = await gestorDB.obtenerRecetaPorId(req.params.id);
         if (!receta) {
             return noExiste(res);
@@ -379,7 +380,7 @@ module.exports = function (app, gestorDB) {
      * existan en la receta. Lo que se envia sustituye a lo guardado para
      * ESTA receta, asi que desmarcar tambien funciona.
      */
-    app.post('/receta/:id/pasos', async function (req, res) {
+    app.post('/receta/:id/pasos', csrf, async function (req, res) {
         const receta = await gestorDB.obtenerRecetaPorId(req.params.id);
         if (!receta) {
             return noExiste(res);

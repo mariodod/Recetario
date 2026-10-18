@@ -58,7 +58,12 @@
                             {{ usuario }}
                         </a>
                     </li>
-                    <li class="nav-item"><a class="nav-link" href="/logout">Cerrar sesión</a></li>
+                    <li class="nav-item">
+                        <form method="POST" action="/logout">
+                            <input type="hidden" name="_csrf" value="{{ csrf }}" />
+                            <button class="nav-link btn btn-link text-decoration-none" type="submit">Cerrar sesión</button>
+                        </form>
+                    </li>
                     {% else %}
                     <li class="nav-item"><a class="nav-link" href="/login">Identifícate</a></li>
                     <li class="nav-item"><a class="nav-link" href="/signup">Regístrate</a></li>

@@ -1,4 +1,5 @@
 const requiereSesion = require('../modules/autenticacion.js');
+const csrf = require('../modules/csrf.js');
 const { hashPassword, verifyPassword } = require('../modules/passwords.js');
 const { subirAvatar, borrarAvatar, borrarFotos } = require('../modules/fotos.js');
 
@@ -110,7 +111,7 @@ module.exports = function (app, gestorDB) {
      * Guarda la descripcion y, si se adjunta, la foto de perfil. La subida
      * puede fallar sin error 500:  el motivo vuelve pintado en la pagina.
      */
-    app.post('/cuenta', requiereSesion, subirAvatar, async function (req, res) {
+    app.post('/cuenta', requiereSesion, subirAvatar, csrf, async function (req, res) {
         const usuario = await usuarioActual(req, res);
         if (!usuario) return;
 
@@ -147,7 +148,7 @@ module.exports = function (app, gestorDB) {
     /**
      * Cambio de contrasena:  pide la actual, como el borrado.
      */
-    app.post('/cuenta/password', requiereSesion, async function (req, res) {
+    app.post('/cuenta/password', requiereSesion, csrf, async function (req, res) {
         const usuario = await usuarioActual(req, res);
         if (!usuario) return;
 
@@ -184,7 +185,7 @@ module.exports = function (app, gestorDB) {
      * Borrado de la cuenta con todo lo suyo. Se pide la contrasena para
      * que un simple enlace accidental no la borre.
      */
-    app.post('/cuenta/borrar', requiereSesion, async function (req, res) {
+    app.post('/cuenta/borrar', requiereSesion, csrf, async function (req, res) {
         const usuario = await usuarioActual(req, res);
         if (!usuario) return;
 

@@ -25,6 +25,7 @@
                 {% endif %}
 
                 <form method="POST" action="/cuenta" enctype="multipart/form-data">
+                    <input type="hidden" name="_csrf" value="{{ csrf }}" />
                     <div class="mb-3">
                         <label class="form-label" for="bio">Descripcion</label>
                         <textarea class="form-control" id="bio" name="bio" rows="3"
@@ -53,6 +54,7 @@
             <div class="card-header">Tu contraseña</div>
             <div class="card-body">
                 <form method="POST" action="/cuenta/password">
+                    <input type="hidden" name="_csrf" value="{{ csrf }}" />
                     <div class="mb-3">
                         <label class="form-label" for="actual">Contraseña actual</label>
                         <input class="form-control" type="password" id="actual" name="actual" required />
@@ -88,6 +90,7 @@
             foto de perfil. No se puede deshacer.
         </p>
         <form method="POST" action="/cuenta/borrar" class="row g-2 align-items-end">
+            <input type="hidden" name="_csrf" value="{{ csrf }}" />
             <div class="col-sm-6">
                 <label class="form-label" for="borrar-password">Escribe tu contraseña para confirmar</label>
                 <input class="form-control" type="password" id="borrar-password" name="password" required />

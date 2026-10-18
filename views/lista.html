@@ -44,6 +44,7 @@
     guarda:  las marcas se quedan en este navegador aunque recargues.
 </p>
 <form method="POST" action="/lista/marcar">
+    <input type="hidden" name="_csrf" value="{{ csrf }}" />
     <input type="hidden" name="recetas" value="{{ recetasParam }}" />
     <ul class="list-group mb-3">
         {% for grupo in grupos %}

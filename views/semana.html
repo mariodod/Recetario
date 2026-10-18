@@ -20,10 +20,12 @@
 
 <div class="d-flex flex-wrap gap-2 mb-4">
     <form method="POST" action="/semana/rellenar">
+        <input type="hidden" name="_csrf" value="{{ csrf }}" />
         <input type="hidden" name="sem" value="{{ semana }}" />
         <button class="btn btn-outline-primary" type="submit">Rellenar los huecos con recetas al azar</button>
     </form>
     <form method="POST" action="/semana/vaciar">
+        <input type="hidden" name="_csrf" value="{{ csrf }}" />
         <input type="hidden" name="sem" value="{{ semana }}" />
         <button class="btn btn-outline-danger" type="submit">Vaciar la semana</button>
     </form>
@@ -51,6 +53,7 @@
                     <div class="d-flex align-items-center gap-1 mb-1">
                         <a href="/receta/{{ receta._id }}" class="small text-truncate">{{ receta.titulo }}</a>
                         <form method="POST" action="/semana/quitar" class="m-0 flex-shrink-0">
+                            <input type="hidden" name="_csrf" value="{{ csrf }}" />
                             <input type="hidden" name="sem" value="{{ semana }}" />
                             <input type="hidden" name="dia" value="{{ dia.clave }}" />
                             <input type="hidden" name="momento" value="{{ momento.valor }}" />
@@ -63,6 +66,7 @@
 
                     {% if opcionesPorMomento[momento.valor].length > 0 %}
                     <form method="POST" action="/semana/anadir" class="d-flex gap-1 mt-1">
+                        <input type="hidden" name="_csrf" value="{{ csrf }}" />
                         <input type="hidden" name="sem" value="{{ semana }}" />
                         <input type="hidden" name="dia" value="{{ dia.clave }}" />
                         <input type="hidden" name="momento" value="{{ momento.valor }}" />

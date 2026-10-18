@@ -1,4 +1,5 @@
 const { momentosDelMenu } = require('../modules/filtros.js');
+const csrf = require('../modules/csrf.js');
 
 const OPCIONES = [
     { valor: 'ambos', etiqueta: 'Comidas y cenas' },
@@ -19,7 +20,7 @@ module.exports = function (app, gestorDB) {
         });
     });
 
-    app.post('/menu', async function (req, res) {
+    app.post('/menu', csrf, async function (req, res) {
         const momento = OPCIONES.some(function (opcion) { return opcion.valor === req.body.momento; })
             ? req.body.momento
             : 'ambos';

@@ -51,6 +51,7 @@
         <span class="badge bg-secondary">{{ receta.tiempo }} min</span>
         {% endif %}
         <form class="d-inline ms-auto" method="POST" action="/receta/{{ receta._id }}/favorito">
+            <input type="hidden" name="_csrf" value="{{ csrf }}" />
             <button class="btn btn-sm btn-outline-warning" type="submit">&#9733; Quitar</button>
         </form>
     </li>

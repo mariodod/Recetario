@@ -1,6 +1,37 @@
 const { hashPassword, verifyPassword } = require('../modules/passwords.js');
+const csrf = require('../modules/csrf.js');
+const { rateLimit } = require('express-rate-limit');
 
 module.exports = function (app, gestorDB) {
+
+    //Fuerza bruta contra el login y el registro:  un tope generoso para que
+    //el uso normal (y la suite de pruebas) nunca lo toquen, pero un bot si
+    const limitador = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        limit: 50,
+        standardHeaders: 'draft-7',
+        legacyHeaders: false,
+        handler: function (req, res) {
+            res.status(429).send('Demasiados intentos de acceso, prueba dentro de un rato');
+        }
+    });
+
+    /**
+     * Identifica al usuario en una sesion NUEVA:  nada de lo que hubiera en
+     * la anterior viaja con ella. El token CSRF se muda a la sesion nueva,
+     * para que los formularios abiertos no caduquen al entrar.
+     */
+    function entrarEnSesion(req, res, username, avatar, mensaje) {
+        req.session.regenerate(function () {
+            req.session.usuario = username;
+            req.session.avatar = avatar || null;
+            if (res.locals.csrf) {
+                req.session.csrf = res.locals.csrf;
+            }
+            res.redirect('/?mensaje=' + mensaje);
+        });
+    }
+
     app.get('/usuarios', function (req, res) {
         res.send('ver usuarios');
     });
@@ -13,7 +44,7 @@ module.exports = function (app, gestorDB) {
         res.render('login.html', { username: '', error: null });
     });
 
-    app.post('/login', async function (req, res) {
+    app.post('/login', limitador, csrf, async function (req, res) {
         const username = (req.body.username || '').trim();
         const password = req.body.password || '';
 
@@ -33,9 +64,8 @@ module.exports = function (app, gestorDB) {
             });
         }
 
-        req.session.usuario = usuario.username;
-        req.session.avatar = usuario.avatar || null;
-        res.redirect('/?mensaje=Bienvenido+' + encodeURIComponent(usuario.username) + '&tipoMensaje=alert-success');
+        entrarEnSesion(req, res, usuario.username, usuario.avatar,
+            'Bienvenido+' + encodeURIComponent(usuario.username) + '&tipoMensaje=alert-success');
     });
 
     app.get('/signup', function (req, res) {
@@ -46,7 +76,7 @@ module.exports = function (app, gestorDB) {
         res.render('signup.html', { username: '', error: null });
     });
 
-    app.post('/signup', async function (req, res) {
+    app.post('/signup', limitador, csrf, async function (req, res) {
         const username = (req.body.username || '').trim();
         const password = req.body.password || '';
         const confirmacion = req.body.confirmacion || '';
@@ -82,12 +112,12 @@ module.exports = function (app, gestorDB) {
             creadaEn: new Date()
         });
 
-        req.session.usuario = username;
-        req.session.avatar = null;
-        res.redirect('/?mensaje=Cuenta+creada&tipoMensaje=alert-success');
+        entrarEnSesion(req, res, username, null, 'Cuenta+creada&tipoMensaje=alert-success');
     });
 
-    app.get('/logout', function (req, res) {
+    //Cerrar la sesion es una accion:  por POST, con su token, para que una
+    //pagina ajena no pueda cerrarsela a alguien con un simple enlace
+    app.post('/logout', csrf, function (req, res) {
         req.session.destroy(function () {
             res.redirect('/login?mensaje=Sesion+cerrada&tipoMensaje=alert-info');
         });

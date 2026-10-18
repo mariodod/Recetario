@@ -1,4 +1,5 @@
 const { agruparIngredientes } = require('../modules/compra.js');
+const csrf = require('../modules/csrf.js');
 
 module.exports = function (app, gestorDB) {
 
@@ -110,7 +111,7 @@ module.exports = function (app, gestorDB) {
      * quedan como estaban y las de esta se sustituyen por las enviadas (asi
      * desmarcar tambien funciona).
      */
-    app.post('/lista/marcar', async function (req, res) {
+    app.post('/lista/marcar', csrf, async function (req, res) {
         const ids = idsDeRecetas(req.body.recetas);
         const recetas = await gestorDB.obtenerRecetasPorIds(ids);
         const deEstaLista = new Set(gruposDe(recetas).map(function (grupo) {
@@ -132,7 +133,7 @@ module.exports = function (app, gestorDB) {
     /**
      * Borra todas las marcas de la sesion.
      */
-    app.post('/lista/vaciar', function (req, res) {
+    app.post('/lista/vaciar', csrf, function (req, res) {
         req.session.marcados = [];
         volverALaLista(res, idsDeRecetas(req.body.recetas));
     });

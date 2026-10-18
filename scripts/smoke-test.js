@@ -63,18 +63,40 @@ function sesionDe(guardada) {
 }
 
 /**
- * Cada flujo tiene su propio navegador, con su cookie de sesion.
+ * Cada flujo tiene su propio navegador, con su cookie de sesion. El token
+ * CSRF llega en una cookie espejo: se cose de cada respuesta y se adjunta
+ * solo a los POST, igual que hace un formulario de verdad.
  */
 function crearNavegador() {
     let cookie = null;
+    let csrf = null;
 
     async function peticion(ruta, opciones = {}) {
+        const esPost = (opciones.method || 'GET') === 'POST';
+
+        //Un POST sin token conocido no puede pasar:  se coge uno antes con
+        //una petición GET, que es lo que haria cualquier navegador
+        if (esPost && !csrf) {
+            await peticion('/');
+        }
+
         const headers = Object.assign({}, opciones.headers);
         if (cookie) headers.Cookie = cookie;
 
         let body;
         if (opciones.formData) {
+            opciones.formData.append('_csrf', csrf || '');
             body = opciones.formData;
+        } else if (esPost) {
+            //El cuerpo puede venir como objeto o como URLSearchParams (para
+            //repetir claves como marcado=... y paso=...):  se conserva tal
+            //cual y solo se le engancha el token
+            const campos = opciones.body instanceof URLSearchParams
+                ? new URLSearchParams(opciones.body)
+                : new URLSearchParams(opciones.body || {});
+            campos.set('_csrf', csrf || '');
+            headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            body = campos.toString();
         } else if (opciones.body) {
             headers['Content-Type'] = 'application/x-www-form-urlencoded';
             body = new URLSearchParams(opciones.body).toString();
@@ -87,8 +109,15 @@ function crearNavegador() {
             redirect: 'manual'
         });
 
-        const setCookie = res.headers.get('set-cookie');
-        if (setCookie) cookie = setCookie.split(';')[0];
+        //Cookies del servidor:  la de sesion y la espejo del token CSRF
+        for (const cabecera of res.headers.getSetCookie()) {
+            const par = cabecera.split(';')[0];
+            if (par.startsWith('csrf=')) {
+                csrf = par.slice('csrf='.length);
+            } else {
+                cookie = par;
+            }
+        }
 
         return { status: res.status, texto: await res.text(), cabeceras: res.headers };
     }
@@ -100,7 +129,9 @@ function crearNavegador() {
         },
         subir: function (ruta, formData, opciones) {
             return peticion(ruta, Object.assign({ method: 'POST', formData: formData }, opciones));
-        }
+        },
+        //Para las pruebas de seguridad, que necesitan los valores crudos
+        credenciales: function () { return { cookie: cookie, csrf: csrf }; }
     };
 }
 
@@ -331,13 +362,49 @@ async function main() {
     const barra = await login.get('/');
     comprobar('con sesion iniciada se ve el usuario en la barra', barra.texto.includes('Cerrar sesión'));
 
-    const logout = await login.get('/logout');
+    const logout = await login.post('/logout', {});
     const trasLogout = await login.get('/');
     comprobar('el logout cierra la sesion',
         logout.status === 302 && trasLogout.texto.includes('Identifícate'));
+    const logoutPorGet = await login.get('/logout');
+    comprobar('el logout por GET ya no existe', logoutPorGet.status === 404);
     const detalleSinSesion = await anonimo.get('/receta/' + id);
     comprobar('sin sesion no aparecen los botones de editar',
         !detalleSinSesion.texto.includes('/editar'));
+
+    // ------------------------------------------------------------------
+    // Seguridad:  cabeceras, limite de intentos y token CSRF
+    // ------------------------------------------------------------------
+    const cabecerasSeguras = (await anonimo.get('/')).cabeceras;
+    comprobar('las cabeceras de seguridad estan activas (helmet)',
+        (cabecerasSeguras.get('content-security-policy') || '').startsWith("default-src 'self'")
+        && !cabecerasSeguras.get('x-powered-by')
+        && Boolean(cabecerasSeguras.get('referrer-policy')));
+
+    const loginAbridor = await crearNavegador().post('/login', { username: 'mario', password: 'incorrecta' });
+    comprobar('el login limita los intentos y anuncia las cabeceras',
+        loginAbridor.status === 401
+        && Boolean(loginAbridor.cabeceras.get('ratelimit')
+            || loginAbridor.cabeceras.get('ratelimit-limit')));
+
+    //Ni sin token ni con un token inventado:  la peticion no toca nada
+    const sinToken = await fetch(BASE + '/menu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'momento=comida&numero=5'
+    });
+    comprobar('una peticion POST sin token CSRF se rechaza', sinToken.status === 403);
+
+    const deRegistro = registro.credenciales();
+    const tokenDeNadie = await fetch(BASE + '/menu', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cookie': deRegistro.cookie
+        },
+        body: 'momento=comida&numero=5&_csrf=token-de-nadie'
+    });
+    comprobar('un token CSRF falso tambien se rechaza', tokenDeNadie.status === 403);
 
     // ------------------------------------------------------------------
     // Alta de receta (con la sesion del registro)

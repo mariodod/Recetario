@@ -6,6 +6,7 @@
 <h1>Genera un menú aleatorio</h1>
 
 <form class="row g-3 align-items-end mb-4" method="POST" action="/menu">
+    <input type="hidden" name="_csrf" value="{{ csrf }}" />
     <div class="col-md-4">
         <label class="form-label" for="momento">Qué quieres</label>
         <select class="form-select" id="momento" name="momento">

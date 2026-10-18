@@ -54,14 +54,15 @@
 {% if usuario %}
 <div class="mb-3">
     <form class="d-inline" method="POST" action="/receta/{{ receta._id }}/favorito">
+        <input type="hidden" name="_csrf" value="{{ csrf }}" />
         <button class="btn {% if esFavorito %}btn-warning{% else %}btn-outline-warning{% endif %}" type="submit">
             {% if esFavorito %}&#9733; Quitar de favoritos{% else %}&#9734; Guardar en favoritos{% endif %}
         </button>
     </form>
     {% if receta.autor == usuario %}
     <a class="btn btn-outline-primary" href="/receta/{{ receta._id }}/editar">Editar</a>
-    <form class="d-inline" method="POST" action="/receta/{{ receta._id }}/borrar"
-        onsubmit="return confirm('¿Seguro que quieres borrar esta receta?')">
+    <form class="d-inline" method="POST" action="/receta/{{ receta._id }}/borrar">
+        <input type="hidden" name="_csrf" value="{{ csrf }}" />
         <button class="btn btn-outline-danger" type="submit">Borrar</button>
     </form>
     {% endif %}
@@ -112,6 +113,7 @@
 {% if receta.preparacion.length > 0 %}
 <h2 class="h5 mt-4">Preparación</h2>
 <form method="POST" action="/receta/{{ receta._id }}/pasos">
+    <input type="hidden" name="_csrf" value="{{ csrf }}" />
     <p class="text-muted small mb-2">
         Marca cada paso cuando lo tengas listo:  se guarda en este navegador,
         igual que las marcas de la lista de la compra.
@@ -144,6 +146,7 @@
 {% if usuario %}
 <form method="POST" action="/receta/{{ receta._id }}/valoracion"
     class="d-flex align-items-center flex-wrap gap-2 mb-4">
+    <input type="hidden" name="_csrf" value="{{ csrf }}" />
     {% for estrella in estrellas %}
     <div class="form-check">
         <input class="form-check-input" type="radio" name="estrellas" value="{{ estrella }}"

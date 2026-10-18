@@ -1,4 +1,5 @@
 const requiereSesion = require('../modules/autenticacion.js');
+const csrf = require('../modules/csrf.js');
 const { comprobarUrl, traerHtml, extraerReceta } = require('../modules/importar.js');
 const { MAX_FOTOS } = require('../modules/fotos.js');
 const { DIFICULTADES, MOMENTOS } = require('../modules/filtros.js');
@@ -31,7 +32,7 @@ module.exports = function (app, gestorDB) {
      * alta con lo importado:  se revisa, se completa (dificultad, momento,
      * fotos...) y se guarda como cualquier otra.
      */
-    app.post('/receta/importar', requiereSesion, limitador, async function (req, res) {
+    app.post('/receta/importar', requiereSesion, limitador, csrf, async function (req, res) {
         const url = String(req.body.url || '').trim();
 
         const comprobada = await comprobarUrl(url);

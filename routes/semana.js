@@ -1,4 +1,5 @@
 const requiereSesion = require('../modules/autenticacion.js');
+const csrf = require('../modules/csrf.js');
 const { MOMENTOS } = require('../modules/filtros.js');
 const {
     DIAS,
@@ -127,7 +128,7 @@ module.exports = function (app, gestorDB) {
         await pintarSemana(req, res);
     });
 
-    app.post('/semana/anadir', requiereSesion, async function (req, res) {
+    app.post('/semana/anadir', requiereSesion, csrf, async function (req, res) {
         const usuario = req.session.usuario;
         const lunes = lunesDe(req.body.sem);
         const dia = String(req.body.dia || '');
@@ -158,7 +159,7 @@ module.exports = function (app, gestorDB) {
         avisar(res, lunes, 'Receta anadida al menu', 'alert-success');
     });
 
-    app.post('/semana/quitar', requiereSesion, async function (req, res) {
+    app.post('/semana/quitar', requiereSesion, csrf, async function (req, res) {
         const usuario = req.session.usuario;
         const lunes = lunesDe(req.body.sem);
         const dia = String(req.body.dia || '');
@@ -187,7 +188,7 @@ module.exports = function (app, gestorDB) {
      * de cada uno. Los platos ya puestos no se tocan; si hay mas huecos que
      * recetas de un momento, se acaba repitiendo alguna.
      */
-    app.post('/semana/rellenar', requiereSesion, async function (req, res) {
+    app.post('/semana/rellenar', requiereSesion, csrf, async function (req, res) {
         const usuario = req.session.usuario;
         const lunes = lunesDe(req.body.sem);
         const doc = await gestorDB.obtenerSemana(usuario, lunes);
@@ -229,7 +230,7 @@ module.exports = function (app, gestorDB) {
             : 'No hay ningun hueco vacio ni recetas que anadir', 'alert-success');
     });
 
-    app.post('/semana/vaciar', requiereSesion, async function (req, res) {
+    app.post('/semana/vaciar', requiereSesion, csrf, async function (req, res) {
         const usuario = req.session.usuario;
         const lunes = lunesDe(req.body.sem);
         await gestorDB.borrarSemana(usuario, lunes);
