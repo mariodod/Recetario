@@ -38,15 +38,48 @@ module.exports = function (app, gestorDB) {
     }
 
     /**
+     * La misma lista en texto plano (?formato=txt):  primero las recetas
+     * elegidas y luego cada grupo con su casilla [x], para descargarla,
+     * imprimirla y marcar a mano lo que ya se ha comprado.
+     */
+    function listaEnTexto(recetas, grupos, marcados) {
+        const lineas = [
+            'Lista de la compra',
+            '',
+            'Recetas (' + recetas.length + '):'
+        ];
+        for (const receta of recetas) {
+            lineas.push('- ' + receta.titulo);
+        }
+        lineas.push('', 'Ingredientes (' + grupos.length + '):');
+        for (const grupo of grupos) {
+            lineas.push('[' + (marcados.includes(grupo.clave) ? 'x' : ' ') + '] ' + grupo.texto);
+        }
+        return lineas.join('\n') + '\n';
+    }
+
+    /**
      * Lista de la compra. Cada grupo puede marcarse como comprado: las marcas
-     * se guardan en la sesion al pulsar el boton del formulario.
+     * se guardan en la sesion al pulsar el boton del formulario. Con
+     * ?formato=txt se descarga igual, en un archivo de texto.
      */
     app.get('/lista', async function (req, res) {
         const ids = idsDeRecetas(req.query.recetas);
         const recetas = await gestorDB.obtenerRecetasPorIds(ids);
         const marcados = req.session.marcados || [];
+        const grupos = gruposDe(recetas);
 
-        const grupos = gruposDe(recetas).map(function (grupo) {
+        //Descarga en texto plano:  mismos datos que la pagina, sin html
+        if (req.query.formato === 'txt') {
+            if (!recetas.length) {
+                return res.redirect('/lista');
+            }
+            res.type('text/plain');
+            res.set('Content-Disposition', 'attachment; filename="lista-de-la-compra.txt"');
+            return res.send(listaEnTexto(recetas, grupos, marcados));
+        }
+
+        const conMarcas = grupos.map(function (grupo) {
             grupo.marcada = marcados.includes(grupo.clave);
             return grupo;
         });
@@ -66,7 +99,7 @@ module.exports = function (app, gestorDB) {
 
         res.render('lista.html', {
             seleccion: seleccion,
-            grupos: grupos,
+            grupos: conMarcas,
             recetasParam: seleccion.map(function (elegida) { return elegida.id; }).join(',')
         });
     });

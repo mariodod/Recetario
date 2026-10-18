@@ -449,6 +449,30 @@ async function main() {
     comprobar('la lista vacia explica como se usa', listaVacia.texto.includes('No has elegido ninguna receta'));
 
     // ------------------------------------------------------------------
+    // La lista se puede descargar en .txt y imprimir sin barra ni botones
+    // ------------------------------------------------------------------
+    const descarga = await anonimo.get('/lista?recetas=' + idCantidades + ',' + idCantidadesExtra + '&formato=txt');
+    comprobar('la lista se descarga como archivo de texto',
+        descarga.status === 200
+        && descarga.cabeceras.get('content-type').includes('text/plain')
+        && descarga.cabeceras.get('content-disposition').includes('attachment')
+        && descarga.cabeceras.get('content-disposition').includes('lista-de-la-compra.txt')
+        && !descarga.texto.includes('<html'));
+    comprobar('el .txt trae las recetas y las cantidades sumadas',
+        descarga.texto.includes('500 g de harina') && descarga.texto.includes('4 huevos')
+        && descarga.texto.includes('Receta con cantidades'));
+    comprobar('el .txt deja una casilla por ingrediente para marcarlo a mano',
+        (descarga.texto.match(/\[ \]/g) || []).length === 3);
+
+    const descargaVacia = await anonimo.get('/lista?formato=txt');
+    comprobar('sin recetas no hay nada que descargar', descargaVacia.status === 302);
+
+    comprobar('la pagina de la lista ofrece la descarga y la impresion',
+        compra.texto.includes('formato=txt') && compra.texto.includes('Ctrl+P'));
+    comprobar('las paginas traen estilos para imprimir sin barra ni botones',
+        compra.texto.includes('@media print'));
+
+    // ------------------------------------------------------------------
     // Las marcas de la lista de la compra se guardan en la sesion
     // ------------------------------------------------------------------
     const idsLista = idCantidades + ',' + idCantidadesExtra;
@@ -470,6 +494,11 @@ async function main() {
     comprobar('la marca guardada sale marcada al recargar',
         casillaMarcada(conMarcas.texto, claves[0])
         && (conMarcas.texto.match(/checked/g) || []).length === 1);
+
+    const descargaMarcada = await anonimo.get('/lista?recetas=' + idsLista + '&formato=txt');
+    comprobar('el .txt refleja las marcas de este navegador',
+        (descargaMarcada.texto.match(/\[x\]/g) || []).length === 1
+        && (descargaMarcada.texto.match(/\[ \]/g) || []).length === 2);
 
     const sinMarcas = new URLSearchParams();
     sinMarcas.append('recetas', idsLista);

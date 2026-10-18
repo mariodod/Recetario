@@ -14,6 +14,11 @@
 <a class="btn btn-outline-secondary" href="/recetas">Ir al listado</a>
 {% else %}
 
+<p class="d-flex flex-wrap gap-2 align-items-center mb-4">
+    <a class="btn btn-sm btn-outline-secondary" href="/lista?recetas={{ recetasParam }}&amp;formato=txt">Descargar .txt</a>
+    <span class="text-muted small">O imprime esta pagina con Ctrl+P:  se va la barra y los botones y queda solo la lista.</span>
+</p>
+
 <h2 class="h6 text-muted">Recetas incluidas</h2>
 <ul class="list-group mb-4">
     {% for elegida in seleccion %}
