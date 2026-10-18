@@ -14,6 +14,7 @@ video (una vez registrado).
 | MongoDB (driver oficial) | 7.7 |
 | Nunjucks (motor de plantillas) | 3.2 |
 | express-session | 1.19 |
+| connect-mongo (sesiones en MongoDB) | 6.0 |
 | multer (subida de fotos) | 2.4 |
 | Bootstrap (frontend) | 5.3.8 (CDN) |
 | nodemon (solo desarrollo) | 3.1 |
@@ -97,6 +98,7 @@ usuarios      { username, password, creadaEn }     // password: scrypt con sal
 etiquetas     { nombre, creadaEn }                 // indice unico sobre nombre
 favoritos     { usuario, receta, creadaEn }        // indice unico usuario+receta
 valoraciones  { usuario, receta, estrellas, valoradaEn }   // indice unico usuario+receta
+sessions      { _id, session, expires }             // sesiones (connect-mongo, ttl 7 dias)
 ```
 
 Los ingredientes, la preparacion y las etiquetas se escriben en un textarea,
@@ -160,7 +162,8 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
    permisos de autor, cesion de autoría y filtro por autor, etiquetas con
    comas, subida y quitado de fotos, incrustacion de videos, escape de HTML,
-   raciones, lista de la compra y sus marcas, favoritos y valoraciones.
+   raciones, lista de la compra y sus marcas, favoritos y valoraciones, y que
+   las sesiones se guardan en MongoDB.
    Los datos que crea la prueba se borran al terminar.
 
 ## Rutas
@@ -226,9 +229,6 @@ los filtros van en la misma plantilla.
 - El escalado por raciones y la suma de la lista de la compra son un intento
   de leer la cantidad de delante de cada ingrediente; un ingrediente raro
   ("al gusto", "un puñado") se queda tal cual y no se suma.
-- Las marcas de la lista de la compra y el resto de la sesion viven en la
-  memoria del servidor (el almacén por defecto de express-session), asi que se
-  pierden al reiniciar; con una tienda de sesiones en MongoDB sobrevivirian.
 - `npm audit` avisa de un fallo de denegacion de servicio en `braces`
   (dependencia de `chokidar`, usada por nodemon y por la recarga de
   plantillas de Nunjucks). No tiene correccion publicada y solo afecta a
