@@ -17,7 +17,6 @@ video (una vez registrado).
 | connect-mongo (sesiones en MongoDB) | 6.0 |
 | multer (subida de fotos) | 2.4 |
 | Bootstrap (frontend) | 5.3.8 (CDN) |
-| nodemon (solo desarrollo) | 3.1 |
 
 El proyecto original usaba `swig`, `body-parser`, MongoDB 2.x y mLab. Todo eso
 se ha migrado:
@@ -59,6 +58,11 @@ se ha migrado:
 - **Raciones**:  cada receta dice para cuantas personas es y el detalle deja
   subir o bajarlas con un boton (?raciones=6), escalando las cantidades de
   los ingredientes que la traigan escrita ("200 g de harina" pasa a "400 g").
+  Se entienden enteros y decimales ("200 g", "1,5 l"), fracciones ("1/2
+  taza", "½ taza", "1 1/2 taza"), palabras de numero con unidad detras
+  ("una cucharada", "un puñado", "media taza") y rangos ("2-3 huevos" pasa a
+  "4-6"):  un rango se escala de extremo a extremo, pero en la lista de la
+  compra no se suma, porque sumar rangos no tiene sentido.
 - **Lista de la compra** (`/lista`):  en el listado se marcan las recetas con
   las que se va a cocinar y la lista agrupa sus ingredientes, sumando los que
   se piden en varias recetas y dejando sin cantidad lo que no la traiga. Cada
@@ -109,8 +113,9 @@ Los ingredientes, la preparacion y las etiquetas se escriben en un textarea,
 uno por linea:  por eso una etiqueta puede llevar comas sin confundirse con
 ningun separador. Los ingredientes son texto libre, asi
 que tambien sirven para buscar y filtrar; si traen una cantidad delante
-("200 g de harina") se lee para escalarlos con las raciones o sumarlos en la
-lista de la compra, y si no la traen se quedan tal cual.
+("200 g de harina", "1/2 taza", "un puñado") se lee para escalarlos con las
+raciones o sumarlos en la lista de la compra, y si no la traen se quedan tal
+cual.
 
 La busqueda textual se apoya en un indice de texto de MongoDB
 (`busqueda_textual`) sobre titulo, etiquetas, ingredientes y preparacion:  los
@@ -144,14 +149,15 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    Inserta las recetas de ejemplo que falten (23 en total) con sus
    ingredientes, preparación y etiquetas, las firma con el usuario `mario` /
    `recetario123` y les pone raciones según el momento del día. Se puede
-   ejecutar cuantas veces se quiera: también rellena las recetas antiguas que
-   se hayan quedado sin autor ni raciones.
+   ejecutar cuantas veces se quiera:  también rellena las recetas que se
+   hayan quedado sin autor (o con el autor a `null` o vacío), sin raciones o
+   sin lista de fotos.
 
 4. **Arrancar**:
 
    ```bash
    npm start     # node app.js
-   npm run dev   # nodemon, recarga al guardar
+   npm run dev   # node --watch, recarga al guardar
    ```
 
    La aplicacion queda en <http://localhost:8081>.
@@ -166,9 +172,10 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
    permisos de autor, cesion de autoría y filtro por autor, etiquetas con
    comas, subida y quitado de fotos, incrustacion de videos, escape de HTML,
-   raciones, lista de la compra, su descarga en .txt y sus marcas, pasos
-   marcados de la preparacion, favoritos y valoraciones, y que las sesiones se
-   guardan en MongoDB.
+   raciones (incluidas cantidades raras:  fracciones, rangos y "un puñado"),
+   lista de la compra, su descarga en .txt y sus marcas, pasos
+   marcados de la preparacion, favoritos y valoraciones, que el seed reparte
+   las recetas que no tengan autor y que las sesiones se guardan en MongoDB.
    Los datos que crea la prueba se borran al terminar.
 
 ### Pila completa con Docker Compose
@@ -244,16 +251,3 @@ public/                 Estaticos (imagenes)
 
 `views/recetasPg.html` dejo de existir:  el listado siempre esta paginado y
 los filtros van en la misma plantilla.
-
-## Pendiente
-
-- Las recetas sin autor no las puede editar nadie desde la aplicacion (solo
-  ocurre a mano en la base de datos); `npm run seed` se las asigna al usuario
-  de ejemplo.
-- El escalado por raciones y la suma de la lista de la compra son un intento
-  de leer la cantidad de delante de cada ingrediente; un ingrediente raro
-  ("al gusto", "un puñado") se queda tal cual y no se suma.
-- `npm audit` avisa de un fallo de denegacion de servicio en `braces`
-  (dependencia de `chokidar`, usada por nodemon y por la recarga de
-  plantillas de Nunjucks). No tiene correccion publicada y solo afecta a
-  entorno de desarrollo.
