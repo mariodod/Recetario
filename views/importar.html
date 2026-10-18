@@ -1,0 +1,33 @@
+<!-- https://mozilla.github.io/nunjucks/ -->
+{% extends "base.html" %}
+
+{% block titulo %}Importar receta{% endblock %}
+
+{% block contenido %}
+<h1>Importar receta de otra pagina</h1>
+
+<p class="text-muted mb-4">
+    Pega la url de una receta publicada en cualquier web que la tenga en
+    formato estandar ( casi todas:  las que embeben datos JSON-LD de tipo
+    Recipe). Se baja la pagina, se leen sus ingredientes, pasos, tiempo y
+    raciones, y se abre el formulario de alta con lo importado para que lo
+    revises y lo guardes. Solo se aceptan paginas publicas de internet.
+</p>
+
+<form method="POST" action="/receta/importar" class="row g-2 align-items-end mb-3">
+    <div class="col-md-8">
+        <label class="form-label" for="url">Url de la receta</label>
+        <input class="form-control" type="url" id="url" name="url" value="{{ url }}" required
+            placeholder="https://ejemplo.com/receta-de-tortilla" />
+    </div>
+    <div class="col-md-4 d-grid">
+        <button class="btn btn-primary" type="submit">Traer la receta</button>
+    </div>
+</form>
+
+{% if error %}
+<div class="alert alert-danger" role="alert">{{ error }}</div>
+{% endif %}
+
+<a class="btn btn-outline-secondary" href="/recetas">Volver a las recetas</a>
+{% endblock %}

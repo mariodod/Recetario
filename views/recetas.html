@@ -4,7 +4,10 @@
 {% block titulo %}Recetas{% endblock %}
 
 {% block contenido %}
-<h1>Recetas</h1>
+<div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="mb-0 me-auto">Recetas</h1>
+    <a class="btn btn-outline-primary" href="/receta/importar">Importar de una url</a>
+</div>
 
 <!-- Filtros -->
 <form class="row g-2 align-items-end mb-4" method="GET" action="/recetas">

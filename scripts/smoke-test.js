@@ -21,6 +21,8 @@ const { CARPETA, borrarFotos, borrarAvatar, CARPETA_AVATARES } = require('../mod
 const sharp = require('sharp');
 const { migrar } = require('../scripts/seed.js');
 const { lunesDe, diasDeSemana, sumarDias } = require('../modules/semana.js');
+const { extraerReceta, minutosDe } = require('../modules/importar.js');
+const http = require('node:http');
 
 //PNG de 1x1 valido, para las pruebas de subida de fotos
 const PNG = Buffer.from(
@@ -119,7 +121,12 @@ let servidorDePruebas = null;
 
 async function main() {
     servidorDePruebas = spawn(process.execPath, [path.join(__dirname, '..', 'app.js')], {
-        env: Object.assign({}, process.env, { PORT: String(PUERTO_PRUEBAS) }),
+        env: Object.assign({}, process.env, {
+            PORT: String(PUERTO_PRUEBAS),
+            //El importador prueba contra un servidor local:  en produccion
+            //esta variable se queda sin definir y solo se acepta Internet
+            IMPORTAR_PERMITE_LOCAL: 'si'
+        }),
         stdio: 'ignore'
     });
 
@@ -1190,6 +1197,88 @@ async function main() {
         otraSemana.status === 200
         && (otraSemana.texto.match(/semana\/quitar/g) || []).length === 0
         && semanaRara.status === 200);
+
+    // ------------------------------------------------------------------
+    // Importar recetas de otra pagina (JSON-LD de schema.org)
+    // ------------------------------------------------------------------
+    comprobar('una duracion ISO de schema.org se entiende como minutos',
+        minutosDe('PT45M') === 45 && minutosDe('PT1H30M') === 90 && minutosDe('tarde') === null);
+
+    const jsonLd = {
+        '@context': 'https://schema.org',
+        '@graph': [
+            { '@type': 'WebSite', name: 'De mentiras' },
+            {
+                '@type': 'Recipe',
+                name: 'Tortilla de mentiras',
+                totalTime: 'PT45M',
+                recipeYield: '4 porciones',
+                recipeIngredient: ['3 huevos', '2 patatas <b>pequenas</b>'],
+                recipeInstructions: [
+                    {
+                        '@type': 'HowToSection',
+                        name: 'Preparacion',
+                        itemListElement: [
+                            { '@type': 'HowToStep', text: 'Pela las patatas.' },
+                            { '@type': 'HowToStep', text: 'Mezcla todo y <em>cuaja</em>.' }
+                        ]
+                    }
+                ],
+                keywords: 'rapido, vegetariano'
+            }
+        ]
+    };
+    const paginaMentira = '<html><head>'
+        + '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</script>'
+        + '</head><body><p>Una pagina de mentiras.</p></body></html>';
+
+    const recetaImportada = extraerReceta(paginaMentira);
+    comprobar('el JSON-LD de la pagina se mapea a la receta',
+        Boolean(recetaImportada)
+        && recetaImportada.titulo === 'Tortilla de mentiras'
+        && recetaImportada.tiempo === 45
+        && recetaImportada.raciones === 4
+        && recetaImportada.ingredientes.length === 2
+        && recetaImportada.ingredientes[1] === '2 patatas pequenas'
+        && recetaImportada.preparacion[1] === 'Mezcla todo y cuaja.'
+        && recetaImportada.etiquetas.includes('vegetariano'));
+    comprobar('una pagina sin receta devuelve null',
+        extraerReceta('<html><body><p>Hola</p></body></html>') === null);
+
+    const importarAnonimo = await anonimo.get('/receta/importar');
+    comprobar('importar una receta pide identificarse', importarAnonimo.status === 302);
+
+    //Servidor local de mentiras, para probar el importador de punta a punta
+    const servidorMentira = http.createServer(function (peticion, respuesta) {
+        respuesta.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        respuesta.end(peticion.url === '/sin-receta'
+            ? '<html><body>Hola</body></html>'
+            : paginaMentira);
+    });
+    await new Promise(function (resolve) { servidorMentira.listen(0, '127.0.0.1', resolve); });
+    const urlLocal = 'http://127.0.0.1:' + servidorMentira.address().port;
+
+    const formularioImportado = await registro.post('/receta/importar', { url: urlLocal + '/tortilla' });
+    comprobar('la receta de la url sale en el formulario de alta',
+        formularioImportado.status === 200
+        && formularioImportado.texto.includes('Tortilla de mentiras')
+        && formularioImportado.texto.includes('3 huevos')
+        && formularioImportado.texto.includes('Pela las patatas.')
+        && formularioImportado.texto.includes('value="45"'));
+
+    const sinRecetaAlli = await registro.post('/receta/importar', { url: urlLocal + '/sin-receta' });
+    comprobar('una pagina sin receta avisa al importarla',
+        sinRecetaAlli.status === 400 && sinRecetaAlli.texto.includes('ninguna receta'));
+
+    const redInterna = await registro.post('/receta/importar', { url: 'http://10.1.2.3/receta' });
+    comprobar('no se importa de una red interna',
+        redInterna.status === 400 && redInterna.texto.includes('red interna'));
+
+    const protocoloRaro = await registro.post('/receta/importar', { url: 'ftp://ejemplo.com/receta' });
+    comprobar('solo se aceptan paginas http o https',
+        protocoloRaro.status === 400 && protocoloRaro.texto.includes('http o https'));
+
+    servidorMentira.close();
 
     // ------------------------------------------------------------------
     // Las sesiones viven en MongoDB, no solo en la memoria del servidor

@@ -74,6 +74,7 @@ app.use("/privado/", routerAutenticacion);
 gestorDB.init(DB_URI);
 
 //Rutas/controladores por logica
+require("./routes/importar.js")(app, gestorDB); //(app, gestorDB) antes que /receta/:id
 require("./routes/recetas.js")(app, gestorDB); //(app, gestorDB)
 require("./routes/menu.js")(app, gestorDB); //(app, gestorDB)
 require("./routes/users.js")(app, gestorDB); //(app, gestorDB)
