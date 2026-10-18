@@ -53,7 +53,9 @@ se ha migrado:
   que comparten etiquetas o ingredientes, por numero de coincidencias.
 - **Recetas completas**:  ademas del titulo, el tiempo, la dificultad y el
   momento del dia, cada receta tiene sus ingredientes, los pasos de la
-  preparacion (numerados), sus fotos y un video.
+  preparacion (numerados), sus fotos y un video. Los pasos se pueden marcar
+  mientras se cocina:  las casillas se guardan en la sesion de cada
+  navegador, como las de la lista de la compra, y lo marcado sale tachado.
 - **Raciones**:  cada receta dice para cuantas personas es y el detalle deja
   subir o bajarlas con un boton (?raciones=6), escalando las cantidades de
   los ingredientes que la traigan escrita ("200 g de harina" pasa a "400 g").
@@ -164,8 +166,9 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
    permisos de autor, cesion de autoría y filtro por autor, etiquetas con
    comas, subida y quitado de fotos, incrustacion de videos, escape de HTML,
-   raciones, lista de la compra, su descarga en .txt y sus marcas, favoritos y
-   valoraciones, y que las sesiones se guardan en MongoDB.
+   raciones, lista de la compra, su descarga en .txt y sus marcas, pasos
+   marcados de la preparacion, favoritos y valoraciones, y que las sesiones se
+   guardan en MongoDB.
    Los datos que crea la prueba se borran al terminar.
 
 ## Rutas
@@ -184,6 +187,7 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 | `POST /lista/vaciar` | Quita todas las marcas |
 | `POST /receta/:id/favorito` | Guarda o quita la receta de favoritos (requiere sesion) |
 | `POST /receta/:id/valoracion` | De 1 a 5 estrellas, una por usuario (requiere sesion) |
+| `POST /receta/:id/pasos` | Guarda en la sesion los pasos marcados de la preparacion |
 | `GET /mis-recetas` | Tus favoritas y las que has creado (requiere sesion) |
 | `GET/POST /menu` | Menu aleatorio (`momento`, `numero`) |
 | `GET/POST /login` | Identificacion |
