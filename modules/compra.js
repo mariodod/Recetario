@@ -44,7 +44,11 @@ function agruparIngredientes(listas) {
             }
 
             const grupo = grupos.get(clave);
-            if (Number.isFinite(parseado.cantidad)) {
+            if (parseado.hasta != null) {
+                //Un rango ("2-3 huevos") no se suma:  el grupo se queda sin
+                //cantidad, con el nombre limpio
+                grupo.completa = false;
+            } else if (Number.isFinite(parseado.cantidad)) {
                 grupo.cantidad += parseado.cantidad;
             } else {
                 grupo.completa = false;

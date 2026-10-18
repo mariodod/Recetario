@@ -248,10 +248,13 @@ const USUARIO = {
 //receta; las que ya traigan raciones las respetan
 const RACIONES_POR_MOMENTO = { desayuno: 2, comida: 4, cena: 2, postre: 8 };
 
-async function main() {
-    gestorDB.init(process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario');
-    await gestorDB.connect();
-
+/**
+ * Relleno de todo lo que no sean los ejemplos:  recetas antiguas que se
+ * quedaron sin autor, sin raciones o con la foto vieja, las etiquetas de los
+ * ejemplos y el usuario de ejemplo. Se puede ejecutar cuantas veces se quiera
+ * y con la base ya conectada (asi tambien lo usa la prueba automatizada).
+ */
+async function migrar() {
     //Recetas:  solo se insertan las que falten, asi que el script se puede
     //ejecutar tantas veces como haga falta
     let insertadas = 0;
@@ -273,9 +276,16 @@ async function main() {
         ? 'Insertadas ' + insertadas + ' recetas de ejemplo.'
         : 'No falta ninguna receta de ejemplo.');
 
-    //Recetas anteriores a la autoria:  sin autor no puede editarlas nadie, asi
-    //que se las asignamos al usuario de ejemplo
-    const sinAutor = await gestorDB.obtenerRecetas({ autor: { $exists: false } });
+    //Recetas sin autor (antiguas o metidas a mano en la base de datos):  sin
+    //autor no puede editarlas nadie desde la aplicacion, asi que se las
+    //asignamos al usuario de ejemplo
+    const sinAutor = await gestorDB.obtenerRecetas({
+        $or: [
+            { autor: { $exists: false } },
+            { autor: null },
+            { autor: '' }
+        ]
+    });
     for (const receta of sinAutor) {
         await gestorDB.actualizarReceta({ _id: receta._id }, { autor: USUARIO.username });
     }
@@ -335,11 +345,25 @@ async function main() {
         });
         console.log('Creado el usuario "' + USUARIO.username + '" con la contrasena "' + USUARIO.password + '".');
     }
+}
 
+/**
+ * Arranca, migra y cierra:  lo que hace `npm run seed`.
+ */
+async function main() {
+    gestorDB.init(process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario');
+    await gestorDB.connect();
+    await migrar();
     await gestorDB.close();
 }
 
-main().catch(function (err) {
-    console.error('Error al cargar los datos de ejemplo: ' + err.message);
-    process.exit(1);
-});
+//Solo al ejecutarlo con "npm run seed":  al requerirlo (la prueba automatizada)
+//no se conecta a nada
+if (require.main === module) {
+    main().catch(function (err) {
+        console.error('Error al cargar los datos de ejemplo: ' + err.message);
+        process.exit(1);
+    });
+}
+
+module.exports = { migrar };

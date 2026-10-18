@@ -13,6 +13,7 @@ const gestorDB = require('../modules/gestorDB.js');
 const { MongoClient } = require('mongodb');
 const { extraerFiltros, consultaDeFiltros } = require('../modules/filtros.js');
 const { CARPETA, borrarFotos } = require('../modules/fotos.js');
+const { migrar } = require('../scripts/seed.js');
 
 //PNG de 1x1 valido, para las pruebas de subida de fotos
 const PNG = Buffer.from(
@@ -842,6 +843,62 @@ async function main() {
 
     const privado = await anonimo.get('/privado/algo');
     comprobar('lo que cuelga de /privado sigue protegido', privado.status === 302);
+
+    // ------------------------------------------------------------------
+    // Cantidades raras:  fracciones, rangos, palabras de numero y "al gusto"
+    // ------------------------------------------------------------------
+    const creadaRaras = await registro.post('/receta',
+        Object.assign(formulario('Receta con cantidades raras'), {
+            raciones: '2',
+            ingredientes: '1/2 taza de harina\n2-3 cucharadas de azucar\n'
+                + 'un puñado de nueces\nmedia cucharada de sal\nal gusto'
+        }));
+    const idRaras = (creadaRaras.cabeceras.get('location') || '').split('?')[0].split('/').pop();
+
+    const rarasEscaladas = await anonimo.get('/receta/' + idRaras + '?raciones=4');
+    comprobar('las fracciones y los rangos se escalan con las raciones',
+        rarasEscaladas.texto.includes('1 taza de harina')
+        && rarasEscaladas.texto.includes('4-6 cucharadas de azucar'));
+    comprobar('lo que no trae cantidad se queda tal cual',
+        rarasEscaladas.texto.includes('al gusto')
+        && !rarasEscaladas.texto.includes('1 al gusto'));
+
+    const listaRaras = await anonimo.get('/lista?recetas=' + idRaras);
+    comprobar('en la lista se suman "un puñado" y "media cucharada"',
+        listaRaras.texto.includes('1 puñado de nueces')
+        && listaRaras.texto.includes('0.5 cucharada de sal')
+        && listaRaras.texto.includes('0.5 taza de harina'));
+    comprobar('el rango no se suma y va con el nombre limpio',
+        listaRaras.texto.includes('>azucar</label>')
+        && !listaRaras.texto.includes('de azucar'));
+
+    // ------------------------------------------------------------------
+    // El seed reparte tambien las recetas con autor vacio o nulo
+    // ------------------------------------------------------------------
+    const recetaHuerfana = {
+        titulo: 'Receta de prueba sin autor',
+        ingredientes: ['sal'],
+        preparacion: ['Mezcla todo.'],
+        momento: 'cena',
+        etiquetas: [],
+        fotos: [],
+        creadaEn: new Date()
+    };
+    //Se montan las dos antes de insertar:  el driver le pone _id al objeto
+    //que se le da, y no vale copiarlo despues
+    const recetaAutorNulo = Object.assign({}, recetaHuerfana, {
+        titulo: 'Receta de prueba con autor nulo',
+        autor: null
+    });
+    const idSinAutor = String(await gestorDB.insertarReceta(recetaHuerfana));
+    const idAutorNulo = String(await gestorDB.insertarReceta(recetaAutorNulo));
+
+    await migrar();
+
+    const arreglada = await gestorDB.obtenerRecetaPorId(idSinAutor);
+    const arregladaNula = await gestorDB.obtenerRecetaPorId(idAutorNulo);
+    comprobar('el seed asigna autor a las recetas que no lo tengan',
+        arreglada.autor === 'mario' && arregladaNula.autor === 'mario');
 
     // ------------------------------------------------------------------
     // Las sesiones viven en MongoDB, no solo en la memoria del servidor
