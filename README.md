@@ -171,6 +171,24 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    guardan en MongoDB.
    Los datos que crea la prueba se borran al terminar.
 
+### Pila completa con Docker Compose
+
+Ademas del flujo anterior (app en local y solo MongoDB en Docker), el repo
+trae un `compose.yaml` que construye la app y levanta mongo con sus propios
+volumenes, sin tocar la base de desarrollo ni el puerto 8081:
+
+```bash
+docker compose up -d --build                       # arranca todo (app en el 8082)
+docker compose run --rm app node scripts/seed.js   # datos de ejemplo, una vez
+# http://localhost:8082
+docker compose down -v                             # para; -v borra tambien los volumenes
+```
+
+Dentro de la red de compose la base se llama `mongo` (sale del propio
+`compose.yaml`) y las fotos subidas se guardan en un volumen. Si expones el
+servicio, define `SESSION_SECRET` en el entorno en lugar de dejar el valor
+por defecto.
+
 ## Rutas
 
 | Ruta | Descripcion |
