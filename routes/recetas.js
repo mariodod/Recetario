@@ -209,6 +209,37 @@ module.exports = function (app, gestorDB) {
     });
 
     /**
+     * Modo cocina:  la receta ahi sola, con letra grande y sin la barra de
+     * navegacion ni una sola linea de javascript. Los pasos marcados son
+     * los mismos que en el detalle (viven en la sesion): se marca desde
+     * aqui o desde alla y los dos sitios se entienden.
+     */
+    app.get('/receta/:id/cocina', async function (req, res) {
+        const receta = await gestorDB.obtenerRecetaPorId(req.params.id);
+        if (!receta) {
+            return noExiste(res);
+        }
+
+        const raciones = racionesAMostrar(req.query.raciones, receta.raciones);
+        const factor = raciones && receta.raciones ? raciones / receta.raciones : 1;
+        const ingredientes = (receta.ingredientes || []).map(function (nombre) {
+            return { nombre: nombre, texto: escalar(nombre, factor) };
+        });
+
+        const pasosMarcados = {};
+        for (const paso of (req.session.pasos || {})[String(receta._id)] || []) {
+            pasosMarcados[paso] = true;
+        }
+
+        res.render('cocina.html', {
+            receta: receta,
+            ingredientes: ingredientes,
+            raciones: raciones,
+            pasosMarcados: pasosMarcados
+        });
+    });
+
+    /**
      * Formulario de alta. Solo para usuarios identificados.
      */
     app.get('/receta', requiereSesion, async function (req, res) {
@@ -437,6 +468,12 @@ module.exports = function (app, gestorDB) {
         }
         req.session.pasos = pasos;
 
-        res.redirect('/receta/' + receta._id);
+        //El modo cocina pide volver ahi tras marcar:  el formulario manda
+        //su destino y solo se acepta 'cocina', para no acabar redirigido
+        //a un enlace de otro sitio
+        const volver = req.body.destino === 'cocina'
+            ? '/receta/' + receta._id + '/cocina'
+            : '/receta/' + receta._id;
+        res.redirect(volver);
     });
 };

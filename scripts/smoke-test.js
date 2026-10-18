@@ -827,6 +827,54 @@ async function main() {
         borradaConComentarios.status === 302 && comentariosHuerfanos.length === 0);
 
     // ------------------------------------------------------------------
+    // Modo cocina:  pagina aparte, sin javascript, letra grande
+    // ------------------------------------------------------------------
+    const cocinaAnonima = await anonimo.get('/receta/' + idPrueba + '/cocina');
+    comprobar('el modo cocina abre sin identificarse y sin barra ni javascript',
+        cocinaAnonima.status === 200
+        && cocinaAnonima.texto.includes('Cocinando: Receta de prueba')
+        && !cocinaAnonima.texto.includes('<nav')
+        && !cocinaAnonima.texto.includes('<script'));
+    comprobar('el modo cocina pone letra grande, ingredientes y pasos numerados',
+        cocinaAnonima.texto.includes('font-size: 1.7rem')
+        && cocinaAnonima.texto.includes('Ingredientes')
+        && cocinaAnonima.texto.includes('1. Bate los huevos.')
+        && cocinaAnonima.texto.includes('2. Cuaja a fuego suave durante cinco minutos.'));
+
+    //Marcar un paso desde el modo cocina vuelve a el y las marcas son las
+    //mismas que en el detalle:  la sesion manda en los dos sitios
+    const pasoDeCocina = new URLSearchParams();
+    pasoDeCocina.append('paso', '1');
+    pasoDeCocina.append('destino', 'cocina');
+    const marcadoEnCocina = await anonimo.post('/receta/' + idPrueba + '/pasos', pasoDeCocina);
+    const cocinaMarcada = await anonimo.get('/receta/' + idPrueba + '/cocina');
+    comprobar('marcar un paso en el modo cocina vuelve a el y queda marcado',
+        marcadoEnCocina.status === 302
+        && String(marcadoEnCocina.cabeceras.get('location')) === '/receta/' + idPrueba + '/cocina'
+        && (cocinaMarcada.texto.match(/checked/g) || []).length === 1
+        && cocinaMarcada.texto.includes('id="paso-1" checked')
+        && cocinaMarcada.texto.includes('paso-hecho'));
+
+    //El destino del formulario solo admite 'cocina':  cualquiera otro
+    //vuelve al detalle, para no acabar en enlaces de otros sitios
+    const destinoLibre = new URLSearchParams();
+    destinoLibre.append('paso', '0');
+    destinoLibre.append('destino', 'https://ejemplo.com');
+    const conDestinoRaro = await anonimo.post('/receta/' + idPrueba + '/pasos', destinoLibre);
+    const detalleCompartido = await anonimo.get('/receta/' + idPrueba);
+    comprobar('el destino del formulario de pasos solo admite el modo cocina',
+        String(conDestinoRaro.cabeceras.get('location')) === '/receta/' + idPrueba
+        && (detalleCompartido.texto.match(/checked/g) || []).length === 1
+        && detalleCompartido.texto.includes('id="paso-0" checked'));
+    comprobar('el detalle ofrece entrar al modo cocina',
+        detalleCompartido.texto.includes('Modo cocina')
+        && detalleCompartido.texto.includes('/cocina'));
+
+    const cocinaInexistente = await anonimo.get('/receta/id-invalido/cocina');
+    comprobar('el modo cocina de una receta inexistente responde 404',
+        cocinaInexistente.status === 404);
+
+    // ------------------------------------------------------------------
     // Edicion y borrado
     // ------------------------------------------------------------------
     const editado = await registro.post('/receta/' + idPrueba, Object.assign(formulario('Receta de prueba (editada)'), {

@@ -1,0 +1,101 @@
+<!-- Modo cocina:  pagina aparte, sin la barra de navegacion y sin una sola
+     linea de javascript (ni la hace falta).  La letra grande y el alto
+     contraste son a proposito:  se lee desde lejos, de pie y con las manos
+     ocupadas. Los pasos marcados son los de siempre: la sesion. -->
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <title>Cocinando: {{ receta.titulo }}</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        body {
+            font-size: 1.4rem;
+        }
+
+        h1 {
+            font-size: 2.6rem;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+        }
+
+        .paso {
+            font-size: 1.7rem;
+            line-height: 1.7;
+        }
+
+        /* Lo hecho ya no estorba:  tachado y mas apagado */
+        .paso-hecho {
+            text-decoration: line-through;
+            opacity: 0.5;
+        }
+
+        .form-check-input {
+            width: 1.8em;
+            height: 1.8em;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body class="bg-body-tertiary p-3 p-md-4">
+    <div class="container" style="max-width: 46rem;">
+        <p class="mb-4">
+            <a class="btn btn-outline-secondary" href="/receta/{{ receta._id }}">&larr; Volver a la receta</a>
+        </p>
+
+        <h1 class="mb-3">{{ receta.titulo }}</h1>
+
+        {% if receta.raciones %}
+        <p class="d-inline-flex align-items-center gap-2 mb-4">
+            <span class="text-muted">Raciones:</span>
+            {% if raciones > 1 %}
+            <a class="btn btn-outline-secondary" href="/receta/{{ receta._id }}/cocina?raciones={{ raciones - 1 }}"
+                aria-label="Quitar una racion">&minus;</a>
+            {% endif %}
+            <strong>{{ raciones }}</strong>
+            {% if raciones < 50 %}
+            <a class="btn btn-outline-secondary" href="/receta/{{ receta._id }}/cocina?raciones={{ raciones + 1 }}"
+                aria-label="Anadir una racion">+</a>
+            {% endif %}
+        </p>
+        {% endif %}
+
+        {% if ingredientes.length > 0 %}
+        <h2 class="mb-2">Ingredientes</h2>
+        <ul class="list-group list-group-flush mb-4">
+            {% for ingrediente in ingredientes %}
+            <li class="list-group-item bg-transparent px-0 py-2">{{ ingrediente.texto }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if receta.preparacion.length > 0 %}
+        <h2 class="mb-3">Preparación</h2>
+        <form method="POST" action="/receta/{{ receta._id }}/pasos">
+            <input type="hidden" name="_csrf" value="{{ csrf }}" />
+            <input type="hidden" name="destino" value="cocina" />
+            <p class="text-muted mb-3">
+                Marca cada paso al terminarlo: se guardan en tu sesión y ahí seguirán.
+            </p>
+            {% for paso in receta.preparacion %}
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" name="paso" value="{{ loop.index0 }}"
+                    id="paso-{{ loop.index0 }}" {% if pasosMarcados[loop.index0] %}checked{% endif %} />
+                <label class="form-check-label paso {% if pasosMarcados[loop.index0] %}paso-hecho{% endif %}"
+                    for="paso-{{ loop.index0 }}">{{ loop.index }}. {{ paso }}</label>
+            </div>
+            {% endfor %}
+            <button class="btn btn-primary btn-lg" type="submit">Guardar los pasos marcados</button>
+        </form>
+        {% else %}
+        <p class="text-muted">Esta receta no tiene preparación escrita.</p>
+        {% endif %}
+    </div>
+</body>
+
+</html>

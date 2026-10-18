@@ -32,6 +32,10 @@
     {% endfor %}
 </p>
 
+<p class="mb-3">
+    <a class="btn btn-primary" href="/receta/{{ receta._id }}/cocina">Modo cocina</a>
+</p>
+
 <!-- Raciones:  cambian las cantidades de los ingredientes (?raciones=6) -->
 {% if receta.raciones %}
 <p class="d-inline-flex align-items-center flex-wrap gap-2 mb-3">
