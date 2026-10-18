@@ -2,8 +2,9 @@
 Aplicacion para tener un libro de recetas online
 
 Puedes ver y filtrar las recetas, consultar la receta del dia, generar un menu
-aleatorio y añadir tus propias recetas con ingredientes, preparación, fotos y
-video (una vez registrado).
+aleatorio, montar tu menu de la semana, tener perfil publico con tus recetas y
+añadir las tuyas con ingredientes, preparación, fotos y video (una vez
+registrado).
 
 ## Stack tecnologico
 
@@ -95,6 +96,21 @@ se ha migrado:
   editarla y borrarla y el anterior deja de poder tocarla. El nombre del autor
   del detalle enlaza a su recetas (`/recetas?autor=...`), que tambien se puede
   escribir a mano en el filtro del listado.
+- **Perfil de usuario**:  cada usuario tiene una pagina publica
+  (`/usuario/nombre`) con su foto, su descripcion, cuando se apunto y sus
+  recetas paginadas. Desde `/cuenta` se cambia la descripcion y la foto de
+  perfil (JPEG, PNG, WEBP o GIF de hasta 2 MB, guardada en
+  `public/avatars`) y se cambia la contraseña pidiendo la actual. Tambien
+  se puede borrar la cuenta escribiendo la contraseña:  se lleva por
+  delante sus recetas con sus fotos, los favoritos y valoraciones de esas
+  recetas, sus propios favoritos y valoraciones y sus semanas del menu.
+- **Menu semanal** (`/semana`):  una tabla de los siete dias por los cuatro
+  momentos del dia en la que cada hueco admite varias recetas (sin repetir
+  la misma dos veces). Se navega de semana en semana, se pueden rellenar los
+  huecos vacios con recetas al azar de cada momento o vaciar la semana
+  entera, y cada usuario guarda la suya. De la semana sale un enlace a la
+  lista de la compra con todos sus platos (`/lista?recetas=...`), que ya
+  sabe sumar ingredientes y descargarla en texto.
 
 ### Modelo de datos
 
@@ -102,12 +118,17 @@ se ha migrado:
 recetas       { titulo, tiempo, raciones, dificultad, momento, ingredientes[],
                 preparacion[], etiquetas[], video, fotos[], autor, creadaEn,
                 actualizadaEn }
-usuarios      { username, password, creadaEn }     // password: scrypt con sal
+usuarios      { username, password, bio, avatar, creadaEn }   // password: scrypt con sal
 etiquetas     { nombre, creadaEn }                 // indice unico sobre nombre
 favoritos     { usuario, receta, creadaEn }        // indice unico usuario+receta
 valoraciones  { usuario, receta, estrellas, valoradaEn }   // indice unico usuario+receta
+semanas       { usuario, semana, platos, creadaEn, actualizadaEn }  // indice unico usuario+semana
 sessions      { _id, session, expires }             // sesiones (connect-mongo, ttl 7 dias)
 ```
+
+La semana del menu se identifica por el lunes que la abre (`"2026-10-12"`) y
+`platos` guarda, por cada dia de la semana, las recetas de cada momento:
+`{ '2026-10-12': { comida: [id1, id2], cena: [id3] } }`.
 
 Los ingredientes, la preparacion y las etiquetas se escriben en un textarea,
 uno por linea:  por eso una etiqueta puede llevar comas sin confundirse con
@@ -157,7 +178,9 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 
    ```bash
    npm start     # node app.js
-   npm run dev   # node --watch, recarga al guardar
+   npm run dev   # node --watch solo sobre el codigo (app, modules, routes),
+                 # no sobre node_modules, asi que un roce del antivirus no
+                 # reinicia el servidor en medio de las pruebas
    ```
 
    La aplicacion queda en <http://localhost:8081>.
@@ -174,8 +197,12 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    comas, subida y quitado de fotos, incrustacion de videos, escape de HTML,
    raciones (incluidas cantidades raras:  fracciones, rangos y "un puñado"),
    lista de la compra, su descarga en .txt y sus marcas, pasos
-   marcados de la preparacion, favoritos y valoraciones, que el seed reparte
-   las recetas que no tengan autor y que las sesiones se guardan en MongoDB.
+   marcados de la preparacion, favoritos y valoraciones, el perfil publico y
+   la edicion de la cuenta (descripcion, avatar, cambio de contraseña y
+   borrado con todo lo suyo), el menu semanal (anadir, quitar, no repetir en
+   un hueco, no colar dias de otra semana, rellenar, vaciar, navegar de
+   semana y su lista de la compra), que el seed reparte las recetas que no
+   tengan autor y que las sesiones se guardan en MongoDB.
    Los datos que crea la prueba se borran al terminar.
 
 ### Pila completa con Docker Compose
@@ -192,7 +219,8 @@ docker compose down -v                             # para; -v borra tambien los 
 ```
 
 Dentro de la red de compose la base se llama `mongo` (sale del propio
-`compose.yaml`) y las fotos subidas se guardan en un volumen. Si expones el
+`compose.yaml`) y las fotos subidas y los avatares se guardan en volumenes
+propios. Si expones el
 servicio, define `SESSION_SECRET` en el entorno en lugar de dejar el valor
 por defecto.
 
@@ -214,6 +242,16 @@ por defecto.
 | `POST /receta/:id/valoracion` | De 1 a 5 estrellas, una por usuario (requiere sesion) |
 | `POST /receta/:id/pasos` | Guarda en la sesion los pasos marcados de la preparacion |
 | `GET /mis-recetas` | Tus favoritas y las que has creado (requiere sesion) |
+| `GET /usuario/:nombre` | Perfil publico:  avatar, descripcion, alta y recetas (`pg`) |
+| `GET /cuenta` | Editar tu perfil, tu contraseña o borrar la cuenta (requiere sesion) |
+| `POST /cuenta` | Guarda la descripcion y la foto de perfil |
+| `POST /cuenta/password` | Cambio de contraseña (pide la actual) |
+| `POST /cuenta/borrar` | Borra la cuenta con todo lo suyo (pide la contraseña) |
+| `GET /semana` | Menu semanal (`sem` = cualquier dia de la semana; por defecto, la actual) |
+| `POST /semana/anadir` | Anade una receta a un hueco (`sem`, `dia`, `momento`, `receta`) |
+| `POST /semana/quitar` | Quita una receta de su hueco |
+| `POST /semana/rellenar` | Rellena los huecos vacios con recetas al azar |
+| `POST /semana/vaciar` | Borra la semana entera |
 | `GET/POST /menu` | Menu aleatorio (`momento`, `numero`) |
 | `GET/POST /login` | Identificacion |
 | `GET/POST /signup` | Registro |
@@ -233,20 +271,24 @@ modules/
   recetaDelDia.js       Eleccion determinista de la receta del dia
   raciones.js           Lectura y escalado de cantidades por raciones
   compra.js             Agrupacion de ingredientes para la lista
+  semana.js             Fechas, dias y momentos del menu semanal
   video.js              Incrustacion de videos de YouTube y Vimeo
-  fotos.js              Subida y borrado de fotos
+  fotos.js              Subida y borrado de fotos y avatares
 routes/
   recetas.js            Listado, filtros, detalle, alta, edicion, borrado,
                         favoritos, valoraciones y mis recetas
   menu.js               Menu aleatorio
   users.js              Registro, login y logout
   compra.js             Lista de la compra
+  cuenta.js             Perfil publico, edicion de la cuenta y su borrado
+  semana.js             Menu semanal
 scripts/
   seed.js               Datos de ejemplo
   smoke-test.js         Pruebas de rutas
 views/                  Plantillas Nunjucks
 public/                 Estaticos (imagenes)
   fotos/                Fotos subidas (en .gitignore)
+  avatares/             Fotos de perfil (en .gitignore)
 ```
 
 `views/recetasPg.html` dejo de existir:  el listado siempre esta paginado y
