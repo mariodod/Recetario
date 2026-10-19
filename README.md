@@ -4,7 +4,8 @@ Aplicacion para tener un libro de recetas online
 Puedes ver y filtrar las recetas, consultar la receta del dia, generar un menu
 aleatorio, montar tu menu de la semana, tener perfil publico con tus recetas y
 añadir las tuyas con ingredientes, preparación, fotos y video (una vez
-registrado).
+registrado), importarlas de otras paginas, comentarlas y cocinarlas a
+pantalla grande.
 
 ## Stack tecnologico
 
@@ -17,6 +18,9 @@ registrado).
 | express-session | 1.19 |
 | connect-mongo (sesiones en MongoDB) | 6.0 |
 | multer (subida de fotos) | 2.4 |
+| sharp (redimensionado de imagenes) | 0.35 |
+| helmet (cabeceras de seguridad) | 8 |
+| express-rate-limit (limites de peticiones) | 8 |
 | Bootstrap (frontend) | 5.3.8 (CDN) |
 
 El proyecto original usaba `swig`, `body-parser`, MongoDB 2.x y mLab. Todo eso
@@ -64,6 +68,11 @@ se ha migrado:
   ("una cucharada", "un puñado", "media taza") y rangos ("2-3 huevos" pasa a
   "4-6"):  un rango se escala de extremo a extremo, pero en la lista de la
   compra no se suma, porque sumar rangos no tiene sentido.
+- **Modo cocina** (`/receta/:id/cocina`):  la receta a pantalla completa, con
+  letra grande y sin la barra de navegacion. Ni una linea de javascript:  los
+  pasos se marcan con un formulario normal y se guardan en la sesion, los
+  mismos que en el detalle, y las raciones se suben o bajan con enlaces. El
+  detalle tiene el boton para entrar.
 - **Lista de la compra** (`/lista`):  en el listado se marcan las recetas con
   las que se va a cocinar y la lista agrupa sus ingredientes, sumando los que
   se piden en varias recetas y dejando sin cantidad lo que no la traiga. Cada
@@ -77,13 +86,32 @@ se ha migrado:
   `/mis-recetas` las junta con las que has creado tu.
 - **Valoraciones**:  de 1 a 5 estrellas, una por usuario y receta; el detalle
   muestra la media y deja cambiar tu votacion.
+- **Comentarios**:  cada receta tiene los suyos, con el avatar y el perfil de
+  quien comenta y la fecha. Borrarlo puede su autor o el de la receta, que
+  limpia lo que se publiques en su casa. El texto se pinta escapado (es del
+  usuario) y los comentarios se borran en cascada con su receta o con su
+  cuenta.
 - **Videos**:  los de YouTube y Vimeo se incrustan en la pagina de la receta;
   cualquier otro enlace se muestra simplemente como enlace.
 - **Fotos**:  cada receta admite hasta seis. Se guardan en `public/fotos` con
   nombre aleatorio y solo se aceptan imagenes JPEG, PNG, WEBP o GIF de hasta
-  5 MB. El detalle las enseña en galeria (y en miniatura en el listado), el
+  5 MB. Al subirlas se redimensionan (`sharp`):  las de receta bajan a como
+  maximo 1600 px de lado y los avatares quedan en cuadro de 512 px, se
+  convierte al formato que menos pese segun el caso y se les borran los
+  metadatos EXIF (orientacion, modelo de camara...); los GIF se dejan tal
+  cual para no romper su animacion y, si el procesado falla, no se guarda
+  nada. El detalle las enseña en galeria (y en miniatura en el listado), el
   formulario deja subir varias de una vez y marcar cuales se quitan al guardar;
   las que se dejan de usar se borran del disco, igual que al borrar la receta.
+- **Importar recetas** (`/receta/importar`):  pega la url de una pagina con
+  receta y la app baja su JSON-LD (schema.org) y rellena el formulario de
+  alta con el titulo, las duraciones ISO, las raciones, los ingredientes, los
+  pasos (incluidos los anidados en secciones) y las etiquetas que encuentre;
+  desde ahi se guarda como cualquier otra, revisandola antes. Por seguridad
+  solo se admiten urls http/https de hosts publicos:  el DNS se comprueba
+  antes de bajar nada y las direcciones privadas o de red interna se
+  rechazan tambien en las redirecciones, con tope de 2 MB y 8 segundos.
+  Limitada a 15 importaciones por usuario y rato.
 - **Etiquetas**:  van una por linea en el formulario, en minusculas y sin
   repetidas. Como el separador ya no es la coma, una etiqueta puede llevar
   comas ("pollo, con piel"); al guardarlas entran en el listado general del
@@ -102,8 +130,9 @@ se ha migrado:
   perfil (JPEG, PNG, WEBP o GIF de hasta 2 MB, guardada en
   `public/avatars`) y se cambia la contraseña pidiendo la actual. Tambien
   se puede borrar la cuenta escribiendo la contraseña:  se lleva por
-  delante sus recetas con sus fotos, los favoritos y valoraciones de esas
-  recetas, sus propios favoritos y valoraciones y sus semanas del menu.
+  delante sus recetas con sus fotos y los comentarios de esas recetas, los
+  favoritos y valoraciones de esas recetas, sus propios favoritos,
+  valoraciones y comentarios y sus semanas del menu.
 - **Menu semanal** (`/semana`):  una tabla de los siete dias por los cuatro
   momentos del dia en la que cada hueco admite varias recetas (sin repetir
   la misma dos veces). Se navega de semana en semana, se pueden rellenar los
@@ -111,6 +140,14 @@ se ha migrado:
   entera, y cada usuario guarda la suya. De la semana sale un enlace a la
   lista de la compra con todos sus platos (`/lista?recetas=...`), que ya
   sabe sumar ingredientes y descargarla en texto.
+- **Seguridad**:  cabeceras con `helmet`, con una CSP a medida:  la app no
+  tiene ni una linea de javascript propio, asi que `script-src` es
+  `'self'` (ninguna inyeccion pasa); la hoja de estilos del CDN, los
+  estilos propios y los iframes de YouTube y Vimeo van permitidos uno a uno.
+  Ademas, todos los formularios y todas las rutas POST llevan un token CSRF
+  sincronizador por sesion (comparado en tiempo constante), el login y el
+  registro limitan los intentos (50 por 15 minutos), cerrar la sesion es
+  POST con su token y al entrar se regenera el id de la sesion.
 
 ### Modelo de datos
 
@@ -122,6 +159,7 @@ usuarios      { username, password, bio, avatar, creadaEn }   // password: scryp
 etiquetas     { nombre, creadaEn }                 // indice unico sobre nombre
 favoritos     { usuario, receta, creadaEn }        // indice unico usuario+receta
 valoraciones  { usuario, receta, estrellas, valoradaEn }   // indice unico usuario+receta
+comentarios   { receta, usuario, texto, creadaEn }   // indice receta+creadaEn; receta en texto
 semanas       { usuario, semana, platos, creadaEn, actualizadaEn }  // indice unico usuario+semana
 sessions      { _id, session, expires }             // sesiones (connect-mongo, ttl 7 dias)
 ```
@@ -161,6 +199,11 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    copy .env.example .env   # en Linux/macOS: cp .env.example .env
    ```
 
+   En `.env` se pueden tocar `PORT`, `MONGODB_URI` y `SESSION_SECRET`. La
+   unica variable extra es `IMPORTAR_PERMITE_LOCAL=si`, que solo sirve para
+   probar la importacion por url contra un servidor local de mentiras (por
+   defecto, las urls de red interna se rechazan).
+
 3. **Datos de ejemplo** (opcional):
 
    ```bash
@@ -185,7 +228,9 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 
    La aplicacion queda en <http://localhost:8081>.
 
-5. **Pruebas** (con el servidor levantado):
+5. **Pruebas** (solo hace falta la base de datos: la suite levanta y apaga
+   su propio servidor en un puerto libre, asi que un arranque o una parada
+   del servidor de desarrollo no la toca):
 
    ```bash
    npm test
@@ -194,14 +239,20 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    Recorre todas las rutas y comprueba filtros, busqueda textual, paginacion,
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
    permisos de autor, cesion de autoría y filtro por autor, etiquetas con
-   comas, subida y quitado de fotos, incrustacion de videos, escape de HTML,
+   comas, subida y quitado de fotos (incluidos el redimensionado, el EXIF y
+   los GIF), incrustacion de videos, escape de HTML,
    raciones (incluidas cantidades raras:  fracciones, rangos y "un puñado"),
-   lista de la compra, su descarga en .txt y sus marcas, pasos
-   marcados de la preparacion, favoritos y valoraciones, el perfil publico y
-   la edicion de la cuenta (descripcion, avatar, cambio de contraseña y
-   borrado con todo lo suyo), el menu semanal (anadir, quitar, no repetir en
+   la lista de la compra, su descarga en .txt y sus marcas, los pasos
+   marcados de la preparacion, favoritos y valoraciones, comentarios y sus
+   permisos, el modo cocina, importar recetas por url (contra un servidor
+   local de mentiras, con sus ataques de red interna y sus urls raras
+   rechazados), el perfil publico y la edicion de la cuenta (descripcion,
+   avatar, cambio de contraseña y borrado con todo lo suyo, comentarios
+   incluidos), el menu semanal (anadir, quitar, no repetir en
    un hueco, no colar dias de otra semana, rellenar, vaciar, navegar de
-   semana y su lista de la compra), que el seed reparte las recetas que no
+   semana y su lista de la compra), las cabeceras de seguridad, el token
+   CSRF (tambien rechazando las peticiones sin el o con uno inventado), el
+   limite de intentos de login, que el seed reparte las recetas que no
    tengan autor y que las sesiones se guardan en MongoDB.
    Los datos que crea la prueba se borran al terminar.
 
@@ -231,6 +282,8 @@ por defecto.
 | `GET /` | Portada con la receta del dia |
 | `GET /recetas` | Listado paginado con filtros (`titulo`, `tiempo`, `dificultad`, `etiqueta`, `ingrediente`, `autor`, `pg`) |
 | `GET /receta/:id` | Detalle. Devuelve JSON si se pide con `Accept: application/json` |
+| `GET /receta/:id/cocina` | Modo cocina:  letra grande, sin barra ni javascript |
+| `GET/POST /receta/importar` | Importa una receta de otra pagina por su url (requiere sesion) |
 | `GET/POST /receta` | Formulario y alta de recetas (requiere sesion) |
 | `GET /receta/:id/editar` | Formulario de edicion, relleno (requiere sesion) |
 | `POST /receta/:id` | Guarda los cambios y, si se pide, cede la autoría (requiere ser el autor) |
@@ -240,6 +293,8 @@ por defecto.
 | `POST /lista/vaciar` | Quita todas las marcas |
 | `POST /receta/:id/favorito` | Guarda o quita la receta de favoritos (requiere sesion) |
 | `POST /receta/:id/valoracion` | De 1 a 5 estrellas, una por usuario (requiere sesion) |
+| `POST /receta/:id/comentarios` | Publica un comentario (requiere sesion) |
+| `POST /comentario/:id/borrar` | Borra un comentario:  su autor o el de la receta |
 | `POST /receta/:id/pasos` | Guarda en la sesion los pasos marcados de la preparacion |
 | `GET /mis-recetas` | Tus favoritas y las que has creado (requiere sesion) |
 | `GET /usuario/:nombre` | Perfil publico:  avatar, descripcion, alta y recetas (`pg`) |
@@ -255,7 +310,7 @@ por defecto.
 | `GET/POST /menu` | Menu aleatorio (`momento`, `numero`) |
 | `GET/POST /login` | Identificacion |
 | `GET/POST /signup` | Registro |
-| `GET /logout` | Cierre de sesion |
+| `POST /logout` | Cierre de sesion (por POST, con su token CSRF) |
 | `/privado/*` | Protegido por `modules/autenticacion.js` |
 
 ## Estructura
@@ -273,7 +328,9 @@ modules/
   compra.js             Agrupacion de ingredientes para la lista
   semana.js             Fechas, dias y momentos del menu semanal
   video.js              Incrustacion de videos de YouTube y Vimeo
-  fotos.js              Subida y borrado de fotos y avatares
+  fotos.js              Subida, redimensionado y borrado de fotos y avatares
+  csrf.js               Token CSRF sincronizador por sesion
+  importar.js           Lectura del JSON-LD ajeno y comprobacion de la url
 routes/
   recetas.js            Listado, filtros, detalle, alta, edicion, borrado,
                         favoritos, valoraciones y mis recetas
@@ -282,6 +339,8 @@ routes/
   compra.js             Lista de la compra
   cuenta.js             Perfil publico, edicion de la cuenta y su borrado
   semana.js             Menu semanal
+  importar.js           Importar recetas por url
+  comentarios.js        Comentarios de las recetas
 scripts/
   seed.js               Datos de ejemplo
   smoke-test.js         Pruebas de rutas
