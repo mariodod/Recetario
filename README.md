@@ -99,10 +99,12 @@ se ha migrado:
   maximo 1600 px de lado y los avatares quedan en cuadro de 512 px, se
   convierte al formato que menos pese segun el caso y se les borran los
   metadatos EXIF (orientacion, modelo de camara...); los GIF se dejan tal
-  cual para no romper su animacion y, si el procesado falla, no se guarda
-  nada. El detalle las enseña en galeria (y en miniatura en el listado), el
-  formulario deja subir varias de una vez y marcar cuales se quitan al guardar;
-  las que se dejan de usar se borran del disco, igual que al borrar la receta.
+  cual para no romper su animacion (pero se comprueba que sean un GIF de
+  verdad, no un fichero con ese nombre) y, si el procesado falla, no se
+  guarda nada. El detalle las enseña en galeria (y en miniatura en el
+  listado), el formulario deja subir varias de una vez y marcar cuales se
+  quitan al guardar; las que se dejan de usar se borran del disco, igual que
+  al borrar la receta.
 - **Importar recetas** (`/receta/importar`):  pega la url de una pagina con
   receta y la app baja su JSON-LD (schema.org) y rellena el formulario de
   alta con el titulo, las duraciones ISO, las raciones, los ingredientes, los
@@ -149,6 +151,26 @@ se ha migrado:
   registro limitan los intentos (50 por 15 minutos), cerrar la sesion es
   POST con su token y al entrar se regenera el id de la sesion.
 
+### Como se protegen los formularios
+
+- **Token CSRF**:  cada sesion tiene un token que se esconde en todos los
+  formularios y que `modules/csrf.js` exige en cada peticion POST, comparandolo
+  con el de la sesion en tiempo constante. El token tambien viaja en una cookie
+  espejo (httpOnly y SameSite estricto) para que los clientes de programacion
+  puedan obtenerlo; la validacion es SIEMPRE contra la sesion, asi que la
+  cookie no sirve para forjar nada. Si el cuerpo llega sin token (porque al
+  leer un fichero demasiado grande multer corta el multipart), se usa el de la
+  cookie:  el resultado es el mismo porque lo que se compara sigue siendo el
+  token de la sesion.
+- **Formularios malformados**:  un cuerpo como `usuario[algo]=x` llega como
+  objeto. `modules/formulario.js` lo detecta y la peticion se rechaza con un
+  400 y el formulario de vuelta, en vez de reventar (500) o de guardar un
+  nombre absurdo como "[object Object]".
+- **Ficheros que no valen**:  un fichero de tipo no permitido se descarta
+  sin abortar la peticion, de modo que el resto del formulario (con su token)
+  se lee igual y el usuario ve el aviso real ("las fotos deben ser imagenes
+  JPEG, PNG, WEBP o GIF") en vez de un rechazo incomprensible.
+
 ### Modelo de datos
 
 ```
@@ -182,8 +204,31 @@ pesos hacen que un acierto en el titulo valga mas que en la preparacion, y el
 stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
 'cocinando' dan con la misma receta. El indice se crea solo, al conectar.
 
-## Puesta en marcha
+### Limitaciones conocidas
 
+Cosas que la aplicacion **no** garantiza, para no dar por hecho mas de lo que
+hace:
+
+- **El importador comprueba el DNS antes de bajar, pero no lo fija**:  entre la
+  comprobacion y la descarga el host se vuelve a resolver, asi que un DNS
+  malicioso podria cambiar la respuesta. Es el limite clasico del SSRF por
+  nombre de host; se cierra fijando la IP resuelta en la conexion.
+- **Las cookies no se marcan como `secure`**:  la app funciona tal cual en
+  http, que es lo comodo en desarrollo y en la pila de Docker. Si la expones
+  a internet, ponla detras de un proxy con https y activa `secure` en las
+  cookies de sesion y de CSRF.
+- **Borrar una cuenta no cierra sus otras sesiones**:  la sesion actual si se
+  cierra, pero las demas quedan en la base hasta que caducan (7 dias). Quien
+  borrase la cuenta tendria que invalidar esas sesiones a mano.
+- **El limite de intentos es por direccion IP**:  sirve contra un bot que va
+  solo, no contra uno que reparta las peticiones. Detras de un proxy hay que
+  configurar `trust proxy` para que la IP sea la real.
+- **No hay recuperacion de contraseña ni verificacion del correo**:  las
+  cuentas se identifican con usuario y contraseña, sin correo.
+- **El modo cocina no recuerda nada entre dispositivos**:  los pasos marcados
+  viven en la sesion del navegador, como las marcas de la lista de la compra.
+
+## Puesta en marcha
 1. **Base de datos** (MongoDB 8 en Docker):
 
    ```bash
@@ -239,8 +284,9 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    Recorre todas las rutas y comprueba filtros, busqueda textual, paginacion,
    recetas relacionadas, sesiones, menu, alta, edicion y borrado de recetas,
    permisos de autor, cesion de autoría y filtro por autor, etiquetas con
-   comas, subida y quitado de fotos (incluidos el redimensionado, el EXIF y
-   los GIF), incrustacion de videos, escape de HTML,
+   comas, subida y quitado de fotos (incluidos el redimensionado, el EXIF, los
+   GIF, un GIF que no es un GIF y una foto que pesa demasiado), incrustacion
+   de videos, escape de HTML,
    raciones (incluidas cantidades raras:  fracciones, rangos y "un puñado"),
    la lista de la compra, su descarga en .txt y sus marcas, los pasos
    marcados de la preparacion, favoritos y valoraciones, comentarios y sus
@@ -252,7 +298,9 @@ stemmer en espanol busca por raiz, de forma que 'cocinar', 'cocina' y
    un hueco, no colar dias de otra semana, rellenar, vaciar, navegar de
    semana y su lista de la compra), las cabeceras de seguridad, el token
    CSRF (tambien rechazando las peticiones sin el o con uno inventado), el
-   limite de intentos de login, que el seed reparte las recetas que no
+   limite de intentos de login, los formularios con el cuerpo malformado
+   (que se rechazan con un 400 y sin dejar basura en la base de datos), que
+   el seed reparte las recetas que no
    tengan autor y que las sesiones se guardan en MongoDB.
    Los datos que crea la prueba se borran al terminar.
 
@@ -311,7 +359,7 @@ por defecto.
 | `GET/POST /login` | Identificacion |
 | `GET/POST /signup` | Registro |
 | `POST /logout` | Cierre de sesion (por POST, con su token CSRF) |
-| `/privado/*` | Protegido por `modules/autenticacion.js` |
+| `/privado/*` | Zona reservada y protegida por `modules/autenticacion.js` (sin rutas por ahora) |
 
 ## Estructura
 
@@ -330,10 +378,11 @@ modules/
   video.js              Incrustacion de videos de YouTube y Vimeo
   fotos.js              Subida, redimensionado y borrado de fotos y avatares
   csrf.js               Token CSRF sincronizador por sesion
+  formulario.js         Lectura segura de los campos de los formularios
   importar.js           Lectura del JSON-LD ajeno y comprobacion de la url
 routes/
   recetas.js            Listado, filtros, detalle, alta, edicion, borrado,
-                        favoritos, valoraciones y mis recetas
+                        favoritos, valoraciones, modo cocina y mis recetas
   menu.js               Menu aleatorio
   users.js              Registro, login y logout
   compra.js             Lista de la compra
