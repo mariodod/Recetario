@@ -9,8 +9,6 @@
  * Todo lo de fechas vive aqui para que las rutas solo hablen de claves y las
  * pruebas puedan calcular los mismos lunes que la aplicacion.
  */
-const { MOMENTOS } = require('./filtros.js');
-
 //De lunes a domingo, en el mismo orden que devuelven las fechas
 const DIAS = [
     { nombre: 'Lunes', corto: 'lun' },
@@ -122,21 +120,11 @@ function etiquetaDeSemana(lunes) {
  * Los momentos del dia siguen siendo los del resto de la aplicacion:  aqui
  * solo se les pone etiqueta.
  */
-function momentosValidos() {
-    return MOMENTOS_SEMANA.filter(function (momento) {
-        return MOMENTOS.includes(momento.valor);
-    });
-}
-
 module.exports = {
     DIAS,
     MOMENTOS_SEMANA,
-    esClaveValida,
-    fechaDe,
-    claveDe,
     lunesDe,
     diasDeSemana,
     sumarDias,
-    etiquetaDeSemana,
-    momentosValidos
+    etiquetaDeSemana
 };

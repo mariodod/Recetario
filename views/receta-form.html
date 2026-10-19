@@ -123,9 +123,9 @@
         <label class="form-label" for="autor">Ceder la receta a</label>
         <select class="form-select" id="autor" name="autor">
             <option value="">Nadie: que siga siendo de {{ receta.autor }}</option>
-            {% for usuario in autores %}
-            {% if usuario != receta.autor %}
-            <option value="{{ usuario }}">{{ usuario }}</option>
+            {% for nombre in autores %}
+            {% if nombre != receta.autor %}
+            <option value="{{ nombre }}">{{ nombre }}</option>
             {% endif %}
             {% endfor %}
         </select>

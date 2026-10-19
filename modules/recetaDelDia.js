@@ -28,4 +28,4 @@ function elegirRecetaDelDia(recetas, fecha = new Date()) {
     return recetas[indiceDelDia(fechaLocal(fecha)) % recetas.length];
 }
 
-module.exports = { elegirRecetaDelDia, fechaLocal, indiceDelDia };
+module.exports = { elegirRecetaDelDia };

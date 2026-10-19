@@ -158,8 +158,9 @@ async function main() {
             //esta variable se queda sin definir y solo se acepta Internet
             IMPORTAR_PERMITE_LOCAL: 'si'
         }),
-        stdio: 'ignore'
-    });
+        stdio: ['ignore',
+            fs.openSync(process.env.LOG_SERVIDOR || 'C:/Users/mario/AppData/Local/Temp/opencode/servidor.log', 'a'),
+            fs.openSync(process.env.LOG_SERVIDOR || 'C:/Users/mario/AppData/Local/Temp/opencode/servidor.log', 'a')]    });
 
     //Se espera a que responda antes de empezar (arranque frio, con la base)
     let listo = false;
@@ -405,6 +406,20 @@ async function main() {
         body: 'momento=comida&numero=5&_csrf=token-de-nadie'
     });
     comprobar('un token CSRF falso tambien se rechaza', tokenDeNadie.status === 403);
+
+    //Un cuerpo de formulario malformado ("usuario[algo]=x") llega como objeto:
+    //la aplicacion lo tiene que rechazar con un aviso, no reventar
+    const cuerpoRaro = new URLSearchParams('username[algo]=mario&password[otro]=secreto');
+    const loginRaro = await crearNavegador().post('/login', cuerpoRaro);
+    comprobar('un login con el cuerpo malformado se rechaza sin error de servidor',
+        loginRaro.status === 400, 'estado ' + loginRaro.status);
+
+    const registroRaro = new URLSearchParams(
+        'username[algo]=nuevo' + Date.now() + '&password[otro]=secreto123&confirmacion[otro]=secreto123'
+    );
+    const altaRara = await crearNavegador().post('/signup', registroRaro);
+    comprobar('un registro con el cuerpo malformado se rechaza sin error de servidor',
+        altaRara.status === 400, 'estado ' + altaRara.status + ' ' + altaRara.texto.slice(0, 80));
 
     // ------------------------------------------------------------------
     // Alta de receta (con la sesion del registro)
@@ -1057,6 +1072,21 @@ async function main() {
     comprobar('solo se aceptan imagenes', archivoMalo.status === 400
         && archivoMalo.texto.includes('JPEG, PNG, WEBP o GIF'));
 
+    //Una foto que pesa mas de lo permitido:  multer corta el multipart por
+    //lo alto y el token CSRF (que va en un campo de texto) se queda sin
+    //leer.  La peticion tiene que salir con el aviso del peso, no con un
+    //rechazo incomprensible del token
+    const subidaPesada = new FormData();
+    subidaPesada.append('titulo', 'Receta con foto pesadilla');
+    subidaPesada.append('preparacion', 'No importa.');
+    subidaPesada.append('fotos',
+        new Blob([Buffer.alloc(5 * 1024 * 1024 + 4096)], { type: 'image/jpeg' }), 'enorme.jpg');
+    const fotoPesada = await registro.subir('/receta', subidaPesada);
+    comprobar('una foto que pesa demasiado se rechaza con su aviso',
+        fotoPesada.status === 400 && fotoPesada.texto.includes('5 MB'));
+    comprobar('despues de una subida rechazada se puede seguir usando la sesion',
+        (await registro.get('/receta')).status === 200);
+
     // ------------------------------------------------------------------
     // Las fotos se reducen al subirlas y se les quita el EXIF
     // ------------------------------------------------------------------
@@ -1109,6 +1139,27 @@ async function main() {
     comprobar('el GIF se queda como viene, para no perder la animacion',
         Boolean(gifGuardado) && gifGuardado.format === 'gif' && gifGuardado.width === 40);
 
+    //Un fichero que dice ser un GIF pero no lo es:  el navegador dice el
+    //tipo, pero el contenido es el que manda
+    const gifsAntes = fs.readdirSync(CARPETA).filter(function (nombre) {
+        return nombre.endsWith('.gif');
+    }).length;
+    const subidaFalsa = new FormData();
+    subidaFalsa.append('titulo', 'Receta con un gif falso');
+    subidaFalsa.append('tiempo', '15');
+    subidaFalsa.append('dificultad', 'facil');
+    subidaFalsa.append('momento', 'cena');
+    subidaFalsa.append('ingredientes', 'Huevo');
+    subidaFalsa.append('preparacion', 'Se hace en un minuto.');
+    subidaFalsa.append('fotos', new Blob([PNG], { type: 'image/gif' }), 'falso.gif');
+    const conGifFalso = await registro.subir('/receta', subidaFalsa);
+    const gifsDespues = fs.readdirSync(CARPETA).filter(function (nombre) {
+        return nombre.endsWith('.gif');
+    }).length;
+    comprobar('un fichero que no es un GIF no se guarda como foto',
+        conGifFalso.status === 400 && conGifFalso.texto.includes('imagen valida'));
+    comprobar('el gif falso no se queda en el disco', gifsDespues === gifsAntes);
+
     const borrada = await registro.post('/receta/' + idConFoto + '/borrar', null);
     comprobar('una receta se puede borrar', borrada.status === 302);
     comprobar('al borrar la receta desaparecen sus fotos del disco',
@@ -1133,6 +1184,12 @@ async function main() {
 
     const privado = await anonimo.get('/privado/algo');
     comprobar('lo que cuelga de /privado sigue protegido', privado.status === 302);
+
+    //Las rutas de ejemplo del tutorial original ya no estan
+    const ejemplos = await anonimo.get('/promo/loquesea');
+    const usuarios = await anonimo.get('/usuarios');
+    comprobar('las rutas de ejemplo del tutorial ya no existen',
+        ejemplos.status === 404 && usuarios.status === 404);
 
     // ------------------------------------------------------------------
     // Cantidades raras:  fracciones, rangos, palabras de numero y "al gusto"
@@ -1257,7 +1314,8 @@ async function main() {
     const avatarMalo = new FormData();
     avatarMalo.append('avatar', new Blob([Buffer.from('no soy imagen')], { type: 'text/plain' }), 'nota.txt');
     const subidaAvatarMalo = await conCuenta.subir('/cuenta', avatarMalo);
-    comprobar('un archivo que no es imagen no vale de avatar', subidaAvatarMalo.status === 400);
+    comprobar('un archivo que no es imagen no vale de avatar', subidaAvatarMalo.status === 400,
+        'estado ' + subidaAvatarMalo.status + ' -> ' + subidaAvatarMalo.texto.slice(0, 120));
 
     const passwordMala = await conCuenta.post('/cuenta/password', {
         actual: 'no-es-esta', nueva: 'otra-clave-12', confirmacion: 'otra-clave-12'
@@ -1383,8 +1441,7 @@ async function main() {
     const conLista = await registro.get('/semana?sem=' + lunes);
     comprobar('la semana ofrece la lista de la compra con sus platos',
         anadidaCena.status === 302
-        && conLista.texto.includes('/lista?recetas=' + String(paraComida._id))
-        && conLista.texto.includes('recetas=' + String(paraCena._id)));
+        && conLista.texto.includes('/lista?recetas=' + String(paraComida._id) + ',' + String(paraCena._id)));
 
     const hrefDeLaLista = (conLista.texto.match(/href="(\/lista\?recetas=[^"]+)"/) || ['', '/lista'])[1];
     const listaDeLaSemana = await registro.get(hrefDeLaLista.replace(/&amp;/g, '&'));
@@ -1532,6 +1589,7 @@ async function main() {
     await gestorDB.borrarEtiqueta('receta de prueba (editada)');
     await gestorDB.borrarUsuario({ username: usuario });
     await gestorDB.borrarUsuario({ username: usuario2 });
+    await gestorDB.borrarUsuario({ username: otroUsuario });
 
     //La cuenta de prueba del perfil:  si el borrado fallo a medias, aqui se
     //acaba de limpiar (el avatar, primero, para no dejarlo en disco)

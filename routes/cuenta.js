@@ -1,5 +1,6 @@
 const requiereSesion = require('../modules/autenticacion.js');
 const csrf = require('../modules/csrf.js');
+const { textoDe } = require('../modules/formulario.js');
 const { hashPassword, verifyPassword } = require('../modules/passwords.js');
 const { subirAvatar, borrarAvatar, borrarFotos } = require('../modules/fotos.js');
 
@@ -115,20 +116,27 @@ module.exports = function (app, gestorDB) {
         const usuario = await usuarioActual(req, res);
         if (!usuario) return;
 
-        const bio = String(req.body.bio || '').trim();
+        const bio = textoDe(req.body.bio);
+        if (bio === null) {
+            await borrarAvatar(req.file ? req.file.filename : null);
+            return res.status(400).render(
+                'cuenta.html',
+                await pintarCuenta(usuario, { error: 'El formulario no es valido' })
+            );
+        }
         const error = req.errorAvatar
-            || (bio.length > LIMITE_BIO ? 'La descripcion no puede pasar de ' + LIMITE_BIO + ' caracteres' : null);
+            || (bio.trim().length > LIMITE_BIO ? 'La descripcion no puede pasar de ' + LIMITE_BIO + ' caracteres' : null);
 
         if (error) {
             //Lo que se haya subido de todas formas no se queda a medias
             await borrarAvatar(req.file ? req.file.filename : null);
             return res.status(400).render(
                 'cuenta.html',
-                await pintarCuenta(usuario, { error: error, bio: bio })
+                await pintarCuenta(usuario, { error: error, bio: bio.trim() })
             );
         }
 
-        const campos = { bio: bio };
+        const campos = { bio: bio.trim() };
         if (req.file) {
             campos.avatar = req.file.filename;
         }
@@ -152,9 +160,15 @@ module.exports = function (app, gestorDB) {
         const usuario = await usuarioActual(req, res);
         if (!usuario) return;
 
-        const actual = req.body.actual || '';
-        const nueva = req.body.nueva || '';
-        const confirmacion = req.body.confirmacion || '';
+        const actual = textoDe(req.body.actual);
+        const nueva = textoDe(req.body.nueva);
+        const confirmacion = textoDe(req.body.confirmacion);
+        if (actual === null || nueva === null || confirmacion === null) {
+            return res.status(400).render(
+                'cuenta.html',
+                await pintarCuenta(usuario, { errorPassword: 'El formulario no es valido' })
+            );
+        }
 
         const errores = [];
         if (!(await verifyPassword(actual, usuario.password))) {
@@ -189,7 +203,13 @@ module.exports = function (app, gestorDB) {
         const usuario = await usuarioActual(req, res);
         if (!usuario) return;
 
-        const password = req.body.password || '';
+        const password = textoDe(req.body.password);
+        if (password === null) {
+            return res.status(400).render(
+                'cuenta.html',
+                await pintarCuenta(usuario, { errorBorrado: 'El formulario no es valido' })
+            );
+        }
         if (!(await verifyPassword(password, usuario.password))) {
             return res.status(400).render(
                 'cuenta.html',

@@ -18,6 +18,11 @@ const PORT = process.env.PORT || 8081;
 const DB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/recetario';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'SDi2018$';
 
+//El secreto por defecto es publico:  en produccion avisa de que se cambie
+if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'SDi2018$') {
+    console.warn('Aviso:  se esta usando el SESSION_SECRET por defecto. Define uno propio en el entorno.');
+}
+
 //Motor de plantillas: Nunjucks (sucesor mantenido de swig, misma sintaxis)
 nunjucks.configure(path.join(__dirname, 'views'), {
     autoescape: true,
@@ -124,16 +129,6 @@ require("./routes/compra.js")(app, gestorDB); //(app, gestorDB)
 require("./routes/cuenta.js")(app, gestorDB); //(app, gestorDB)
 require("./routes/semana.js")(app, gestorDB); //(app, gestorDB)
 
-/**
- * Metodos de respuesta de express
- * 
- * res.send(string) respuesta como string
- * res.json(json) respuesta como JSON
- * res.redirect(URL) redireccion a URL
- * res.render(plantilla) renderiza plantilla
- * res.sendFile(file) envia un archivo
- * res.sendStatus(codigo) responde status
- */
 //Peticiones HTTP
 app.get('/', async function (req, res) {
     //La receta del dia solo necesita titulo, tiempo e id
@@ -142,11 +137,6 @@ app.get('/', async function (req, res) {
     res.render('index.html', {
         recetaDelDia: elegirRecetaDelDia(recetas)
     });
-});
-
-// Ejemplo basado en patrones string (Express 5: el comodin debe tener nombre)
-app.get('/promo/*splat', function (req, res) {
-    res.send('Resp al patrón promo *');
 });
 
 //Pagina no encontrada

@@ -1,6 +1,6 @@
 const requiereSesion = require('../modules/autenticacion.js');
 const csrf = require('../modules/csrf.js');
-const { parsearReceta } = require('../modules/receta.js');
+const { parsearReceta, recetaVacia } = require('../modules/receta.js');
 const { subirFotos, nombresDe, borrarFotos, MAX_FOTOS } = require('../modules/fotos.js');
 const { embeberVideo } = require('../modules/video.js');
 const { escalar } = require('../modules/raciones.js');
@@ -84,6 +84,30 @@ function racionesAMostrar(pedido, propias) {
         return numero;
     }
     return propias && propias >= 1 && propias <= 50 ? propias : null;
+}
+
+/**
+ * Los ingredientes con las cantidades ya escaladas al numero de raciones
+ * que se esta viendo. Lo mismo en el detalle y en el modo cocina.
+ */
+function ingredientesPara(receta, raciones) {
+    const factor = raciones && receta.raciones ? raciones / receta.raciones : 1;
+    return (receta.ingredientes || []).map(function (nombre) {
+        return { nombre: nombre, texto: escalar(nombre, factor) };
+    });
+}
+
+/**
+ * Los pasos marcados de esta receta en la sesion, como un mapa para poder
+ * preguntar por ellos en la plantilla. Van en la sesion, como las marcas de
+ * la lista de la compra:  cada navegador guarda los suyos.
+ */
+function pasosMarcadosDe(req, receta) {
+    const marcados = {};
+    for (const paso of (req.session.pasos || {})[String(receta._id)] || []) {
+        marcados[paso] = true;
+    }
+    return marcados;
 }
 
 module.exports = function (app, gestorDB) {
@@ -178,16 +202,10 @@ module.exports = function (app, gestorDB) {
         //Raciones pedidas en la url (?raciones=6):  el factor escala las
         //cantidades de los ingredientes que traigan cantidad
         const raciones = racionesAMostrar(req.query.raciones, receta.raciones);
-        const factor = raciones && receta.raciones ? raciones / receta.raciones : 1;
-        const ingredientes = (receta.ingredientes || []).map(function (nombre) {
-            return { nombre: nombre, texto: escalar(nombre, factor) };
-        });
+        const ingredientes = ingredientesPara(receta, raciones);
 
         //Pasos marcados en la sesion:  para cocinar sin perderte por donde vas
-        const pasosMarcados = {};
-        for (const paso of (req.session.pasos || {})[String(receta._id)] || []) {
-            pasosMarcados[paso] = true;
-        }
+        const pasosMarcados = pasosMarcadosDe(req, receta);
 
         res.format({
             html: function () {
@@ -221,15 +239,8 @@ module.exports = function (app, gestorDB) {
         }
 
         const raciones = racionesAMostrar(req.query.raciones, receta.raciones);
-        const factor = raciones && receta.raciones ? raciones / receta.raciones : 1;
-        const ingredientes = (receta.ingredientes || []).map(function (nombre) {
-            return { nombre: nombre, texto: escalar(nombre, factor) };
-        });
-
-        const pasosMarcados = {};
-        for (const paso of (req.session.pasos || {})[String(receta._id)] || []) {
-            pasosMarcados[paso] = true;
-        }
+        const ingredientes = ingredientesPara(receta, raciones);
+        const pasosMarcados = pasosMarcadosDe(req, receta);
 
         res.render('cocina.html', {
             receta: receta,
@@ -244,7 +255,7 @@ module.exports = function (app, gestorDB) {
      */
     app.get('/receta', requiereSesion, async function (req, res) {
         await pintarFormulario(res, {
-            receta: paraElFormulario({ ingredientes: [], preparacion: [], etiquetas: [], fotos: [] }),
+            receta: paraElFormulario(recetaVacia()),
             modo: 'crear'
         });
     });

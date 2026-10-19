@@ -49,27 +49,61 @@ function almacenamiento(carpeta) {
     });
 }
 
-const subida = multer({
-    storage: almacenamiento(CARPETA),
-    limits: { fileSize: TAMANYO_MAXIMO, files: MAX_FOTOS },
-    fileFilter: function (req, file, cb) {
+/**
+ * Filtro de tipo:  solo se admiten imagenes. El fichero que no vale se
+ * descarta con "cb(null, false)" y NO con un error:  asi multer sigue
+ * leyendo el resto del formulario (el token CSRF viene en un campo de
+ * texto, que si no se leyera la peticion se quedaria sin token y el
+ * rechazo seria un 403 incomprensible en vez del aviso del formulario).
+ * El motivo se anota en la peticion para poder pintarlo.
+ */
+function filtroDeImagenes(aviso, mensaje) {
+    return function (req, file, cb) {
         if (EXTENSIONES[file.mimetype]) {
             return cb(null, true);
         }
-        cb(new Error('tipo-no-permitido'));
-    }
+        req[aviso] = mensaje;
+        cb(null, false);
+    };
+}
+
+const subida = multer({
+    storage: almacenamiento(CARPETA),
+    limits: { fileSize: TAMANYO_MAXIMO, files: MAX_FOTOS },
+    fileFilter: filtroDeImagenes('errorFotos', 'Las fotos deben ser imagenes JPEG, PNG, WEBP o GIF')
 });
 
 const subidaAvatar = multer({
     storage: almacenamiento(CARPETA_AVATARES),
     limits: { fileSize: TAMANYO_AVATAR, files: 1 },
-    fileFilter: function (req, file, cb) {
-        if (EXTENSIONES[file.mimetype]) {
-            return cb(null, true);
-        }
-        cb(new Error('tipo-no-permitido'));
-    }
+    fileFilter: filtroDeImagenes('errorAvatar', 'La foto de perfil debe ser una imagen JPEG, PNG, WEBP o GIF')
 });
+
+/**
+ * Los primeros bytes de un fichero, para comprobar su tipo de verdad.
+ */
+async function primerosBytes(file, cuantos) {
+    const manilla = await fs.promises.open(file.path, 'r');
+    try {
+        const buffer = Buffer.alloc(cuantos);
+        const leidos = await manilla.read(buffer, 0, cuantos, 0);
+        return buffer.slice(0, leidos.bytesRead);
+    } finally {
+        await manilla.close();
+    }
+}
+
+/**
+ * Un GIF de verdad empieza por "GIF87a" o "GIF89a". Los GIF no se procesan
+ * (para no perder la animacion), asi que son los unicos que se comprueban a
+ * mano:  el tipo que dice el navegador no vale por si solo.
+ */
+async function esGifDeVerdad(file) {
+    const cabecera = await primerosBytes(file, 6);
+    if (cabecera.length < 6) return false;
+    const texto = cabecera.toString('ascii');
+    return texto === 'GIF87a' || texto === 'GIF89a';
+}
 
 /**
  * Reduce y limpia una imagen recien subida. Se reescribe en un temporal para
@@ -77,7 +111,12 @@ const subidaAvatar = multer({
  * conversion ha salido bien. El formato se conserva (jpeg, png o webp).
  */
 async function redimensionarImagen(file, cuadrado) {
-    if (file.mimetype === 'image/gif') return;
+    if (file.mimetype === 'image/gif') {
+        if (!await esGifDeVerdad(file)) {
+            throw new Error('El fichero no es un GIF valido');
+        }
+        return;
+    }
 
     let imagen = sharp(file.path).rotate(); //aplica la orientacion del EXIF
     if (cuadrado) {
@@ -89,7 +128,12 @@ async function redimensionarImagen(file, cuadrado) {
     else if (file.mimetype === 'image/png') imagen = imagen.png({ compressionLevel: 9 });
     else if (file.mimetype === 'image/webp') imagen = imagen.webp({ quality: CALIDAD });
 
-    const temporal = file.path + '.tmp' + path.extname(file.path);
+    //El temporal empieza por punto:  asi express.static no lo sirve ni
+    //sigue en pie si el proceso se cae a mitad del trabajo
+    const temporal = path.join(
+        path.dirname(file.path),
+        '.' + path.basename(file.path) + '.tmp'
+    );
     try {
         await imagen.toFile(temporal);
         await fs.promises.rename(temporal, file.path);
@@ -131,7 +175,7 @@ function subirFotos(req, res, next) {
         }).catch(function () {
             borrarFotos(nombresDe(req.files));
             req.files = [];
-            req.errorFotos = 'No se han podido leer las fotos';
+            req.errorFotos = 'Alguna foto no es una imagen valida';
             next();
         });
     });
@@ -159,7 +203,7 @@ function subirAvatar(req, res, next) {
             next();
         }).catch(function () {
             borrarAvatar(req.file ? req.file.filename : null);
-            req.errorAvatar = 'No se ha podido leer la imagen';
+            req.errorAvatar = 'La imagen no es valida';
             next();
         });
     });
@@ -199,7 +243,6 @@ module.exports = {
     subirFotos,
     subirAvatar,
     nombresDe,
-    borrarFoto,
     borrarFotos,
     borrarAvatar: function (nombre) { return borrarAvatarDe(CARPETA_AVATARES, nombre); },
     MAX_FOTOS,

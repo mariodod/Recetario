@@ -7,8 +7,7 @@ const {
     lunesDe,
     diasDeSemana,
     sumarDias,
-    etiquetaDeSemana,
-    momentosValidos
+    etiquetaDeSemana
 } = require('../modules/semana.js');
 
 module.exports = function (app, gestorDB) {
@@ -73,12 +72,12 @@ module.exports = function (app, gestorDB) {
 
         //Recetas ordenadas para los selectores de anadir, por momento
         const opcionesPorMomento = {};
-        for (const momento of MOMENTOS_SEMANA) {
+        await Promise.all(MOMENTOS_SEMANA.map(async function (momento) {
             opcionesPorMomento[momento.valor] = await gestorDB.obtenerRecetas(
                 { momento: momento.valor },
                 { projection: { titulo: 1 }, sort: { titulo: 1 } }
             );
-        }
+        }));
 
         //La lista de la compra pide las recetas de la semana por la url
         const idsLista = Array.from(ids);
@@ -105,7 +104,7 @@ module.exports = function (app, gestorDB) {
             siguiente: sumarDias(lunes, 7),
             esActual: lunes === estaSemana,
             listaHref: idsLista.length > 0
-                ? '/lista?recetas=' + idsLista.join('&recetas=')
+                ? '/lista?recetas=' + idsLista.join(',')
                 : null
         });
     }

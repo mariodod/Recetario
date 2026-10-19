@@ -124,7 +124,7 @@ async function traerHtml(url, saltos) {
     }
 
     const texto = await respuesta.text();
-    if (texto.length > MAXIMO_BYTES) {
+    if (Buffer.byteLength(texto, 'utf8') > MAXIMO_BYTES) {
         throw new Error('La pagina es demasiado grande');
     }
     return texto;
@@ -300,7 +300,5 @@ module.exports = {
     comprobarUrl,
     traerHtml,
     extraerReceta,
-    minutosDe,
-    limpiarTexto,
-    pasosDe
+    minutosDe
 };

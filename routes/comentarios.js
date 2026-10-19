@@ -1,5 +1,6 @@
 const requiereSesion = require('../modules/autenticacion.js');
 const csrf = require('../modules/csrf.js');
+const { textoDe } = require('../modules/formulario.js');
 
 const LIMITE_TEXTO = 2000;
 
@@ -20,11 +21,15 @@ module.exports = function (app, gestorDB) {
             return res.status(404).send('Recurso no disponible');
         }
 
-        const texto = String(req.body.texto || '').trim();
-        if (!texto) {
+        const texto = textoDe(req.body.texto);
+        if (texto === null) {
+            return volverALaReceta(res, receta._id, 'El+formulario+no+es+valido', 'alert-warning');
+        }
+        const limpio = texto.trim();
+        if (!limpio) {
             return volverALaReceta(res, receta._id, 'Escribe+algo+antes+de+comentar', 'alert-warning');
         }
-        if (texto.length > LIMITE_TEXTO) {
+        if (limpio.length > LIMITE_TEXTO) {
             return volverALaReceta(res, receta._id,
                 'El+comentario+no+puede+pasar+de+2000+caracteres', 'alert-warning');
         }
@@ -32,7 +37,7 @@ module.exports = function (app, gestorDB) {
         await gestorDB.insertarComentario({
             receta: String(receta._id),
             usuario: req.session.usuario,
-            texto: texto,
+            texto: limpio,
             creadaEn: new Date()
         });
 

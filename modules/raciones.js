@@ -182,13 +182,4 @@ function escalar(texto, factor) {
         + ' ' + parseado.nombre;
 }
 
-/**
- * Escala una lista entera de ingredientes.
- */
-function escalarIngredientes(ingredientes, factor) {
-    return (ingredientes || []).map(function (ingrediente) {
-        return escalar(ingrediente, factor);
-    });
-}
-
-module.exports = { parsear, formatear, escalar, escalarIngredientes, UNIDADES };
+module.exports = { parsear, formatear, escalar };

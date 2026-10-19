@@ -7,19 +7,8 @@ const { MongoClient, ObjectId } = require('mongodb');
  * async/await. Si algo falla la promesa se rechaza y Express (v5) la
  * encarga automaticamente al manejador de errores.
  *
- * Criterios de busqueda (query modifiers de MongoDB):
- *  - {} -> todos los documentos
- *  - {'tipo' : 'casa'} -> tipo casa
- *  - {'tipo' : 'casa' , 'metros' : 100} -> tipo casa y metros = 100 (igual que AND)
- *  - {'precio' : {$gte:31}} -> precio >= 31
- *      - $gt -> mayor que '>'
- *      - $gte -> mayor o igual '>='
- *      - $lt -> menor que '<'
- *      - $lte -> menor o igual '<='
- *      - $in -> valor contenido en un array
- *      - $nin -> valor NO contenido en un array
- *  - {$or:[{'edad':20}, {'edad':30}]} -> edad = 20 OR 30
- *  - {$and:[{'edad':20}, {'empresa':'Google'}]} -> edad = 20 AND empresa = Google
+ * Los criterios son los de MongoDB ({ }, { campo: valor }, { campo: { $gte:
+ * 31 } }, { campo: { $in: [...] } }, { $or: [...] }...).
  */
 
 let client = null;
@@ -141,15 +130,6 @@ module.exports = {
     eliminarReceta: async function (criterio) {
         const resultado = await coleccion('recetas').deleteMany(criterio);
         return resultado.deletedCount;
-    },
-
-    /**
-     * Sustituye completamente los documentos que coinciden con el criterio
-     * por la nueva receta. Devuelve el numero de documentos sustituidos.
-     */
-    reemplazarReceta: async function (criterio, receta) {
-        const resultado = await coleccion('recetas').replaceOne(criterio, receta);
-        return resultado.matchedCount;
     },
 
     /**

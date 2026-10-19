@@ -1,5 +1,6 @@
 const { hashPassword, verifyPassword } = require('../modules/passwords.js');
 const csrf = require('../modules/csrf.js');
+const { textoDe } = require('../modules/formulario.js');
 const { rateLimit } = require('express-rate-limit');
 
 module.exports = function (app, gestorDB) {
@@ -22,7 +23,12 @@ module.exports = function (app, gestorDB) {
      * para que los formularios abiertos no caduquen al entrar.
      */
     function entrarEnSesion(req, res, username, avatar, mensaje) {
-        req.session.regenerate(function () {
+        req.session.regenerate(function (err) {
+            if (err) {
+                //Si la sesion no se puede renovar se entra en la que haya:
+                //mejor un aviso en el log que dejar al usuario fuera
+                console.error('No se pudo renovar la sesion: ' + err.message);
+            }
             req.session.usuario = username;
             req.session.avatar = avatar || null;
             if (res.locals.csrf) {
@@ -32,9 +38,15 @@ module.exports = function (app, gestorDB) {
         });
     }
 
-    app.get('/usuarios', function (req, res) {
-        res.send('ver usuarios');
-    });
+    /**
+     * Formulario de acceso o de registro con un campo que no es texto.
+     */
+    function formularioRaro(res, plantilla, username) {
+        return res.status(400).render(plantilla, {
+            username: username,
+            error: 'El formulario no es valido'
+        });
+    }
 
     app.get('/login', function (req, res) {
         if (req.session.usuario) {
@@ -45,16 +57,20 @@ module.exports = function (app, gestorDB) {
     });
 
     app.post('/login', limitador, csrf, async function (req, res) {
-        const username = (req.body.username || '').trim();
-        const password = req.body.password || '';
+        const usuario = textoDe(req.body.username);
+        const password = textoDe(req.body.password);
+        if (usuario === null || password === null) {
+            return formularioRaro(res, 'login.html', '');
+        }
+        const username = usuario.trim();
 
         //Solo se busca por usuario: la contrasena se compara despues,
         //con su sal y en tiempo constante
         const usuarios = await gestorDB.obtenerUsuarios({ username: username });
-        const usuario = usuarios[0];
+        const encontrado = usuarios[0];
 
-        const correcta = usuario
-            ? await verifyPassword(password, usuario.password)
+        const correcta = encontrado
+            ? await verifyPassword(password, encontrado.password)
             : false;
 
         if (!correcta) {
@@ -64,8 +80,8 @@ module.exports = function (app, gestorDB) {
             });
         }
 
-        entrarEnSesion(req, res, usuario.username, usuario.avatar,
-            'Bienvenido+' + encodeURIComponent(usuario.username) + '&tipoMensaje=alert-success');
+        entrarEnSesion(req, res, encontrado.username, encontrado.avatar,
+            'Bienvenido+' + encodeURIComponent(encontrado.username) + '&tipoMensaje=alert-success');
     });
 
     app.get('/signup', function (req, res) {
@@ -77,9 +93,13 @@ module.exports = function (app, gestorDB) {
     });
 
     app.post('/signup', limitador, csrf, async function (req, res) {
-        const username = (req.body.username || '').trim();
-        const password = req.body.password || '';
-        const confirmacion = req.body.confirmacion || '';
+        const usuario = textoDe(req.body.username);
+        const password = textoDe(req.body.password);
+        const confirmacion = textoDe(req.body.confirmacion);
+        if (usuario === null || password === null || confirmacion === null) {
+            return formularioRaro(res, 'signup.html', '');
+        }
+        const username = usuario.trim();
 
         const errores = [];
         if (username.length < 3) {
@@ -106,11 +126,24 @@ module.exports = function (app, gestorDB) {
             });
         }
 
-        await gestorDB.insertarUsuario({
-            username: username,
-            password: await hashPassword(password),
-            creadaEn: new Date()
-        });
+        try {
+            await gestorDB.insertarUsuario({
+                username: username,
+                password: await hashPassword(password),
+                creadaEn: new Date()
+            });
+        } catch (err) {
+            //Si dos registros llegan a la vez, el indice unico de la base de
+            //datos avisa del segundo:  se contesta con el mismo aviso que
+            //daria la comprobacion de antes, en vez de un error de servidor
+            if (err && err.code === 11000) {
+                return res.status(400).render('signup.html', {
+                    username: username,
+                    error: 'Ese usuario ya existe'
+                });
+            }
+            throw err;
+        }
 
         entrarEnSesion(req, res, username, null, 'Cuenta+creada&tipoMensaje=alert-success');
     });

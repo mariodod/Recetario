@@ -15,10 +15,11 @@ async function hashPassword(password) {
 
 /**
  * Compara en tiempo constante la contrasena introducida con el hash guardado.
- * Devuelve false si el formato almacenado no es valido.
+ * Devuelve false si el formato almacenado no es valido o si lo que llega no
+ * es texto (un cuerpo de formulario malformado).
  */
 async function verifyPassword(password, almacenado) {
-    if (typeof almacenado !== 'string') return false;
+    if (typeof password !== 'string' || typeof almacenado !== 'string') return false;
 
     const [salt, hash] = almacenado.split(':');
     if (!salt || !hash) return false;
